@@ -1034,6 +1034,12 @@ def render_stack_list(stacks: list[dict[str, Any]], rel_root: str, items: dict[s
     ) + "</div>"
 
 
+def render_single_stack(stack: dict[str, Any] | None, rel_root: str, items: dict[str, ItemEntry]) -> str:
+    if not stack:
+        return render_slot("", rel_root, items)
+    return render_slot(friendly_stack_label(stack, items), rel_root, items, str(stack.get("item", "")))
+
+
 def workstation_shell(station: str, layout_class: str, inner_html: str, recipe_id: str, recipe_type: str) -> str:
     return f"""
     <div class="recipe-card workstation">
@@ -1051,6 +1057,13 @@ def workstation_shell(station: str, layout_class: str, inner_html: str, recipe_i
     """
 
 
+def render_recipe_meta(meta_parts: list[str]) -> str:
+    if not meta_parts:
+        return ""
+    chips = "".join(f"<span class='mc-meta-chip'>{safe_text(part)}</span>" for part in meta_parts)
+    return f"<div class='recipe-meta mc-meta-row'>{chips}</div>"
+
+
 def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEntry], title: str) -> str:
     ingredient_stacks = []
     for value in ingredient_list_from_recipe(recipe):
@@ -1059,35 +1072,69 @@ def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEn
     for key in ("processing_time", "processingTime", "cookingtime", "experience", "heatRequirement"):
         if key in recipe.extra:
             meta_parts.append(f"{key}: {recipe.extra[key]}")
-    center = "<div class='furnace-center'><div class='furnace-fire' aria-hidden='true'></div><div class='progress-bar'></div></div>"
+    main_input = ingredient_stacks[0] if ingredient_stacks else None
+    main_output = recipe.outputs[0] if recipe.outputs else None
+    extra_outputs = recipe.outputs[1:] if len(recipe.outputs) > 1 else []
+
     layout_class = "furnace-ui"
     station = title
     if recipe.recipe_type == "minecraft:stonecutting":
-        center = "<div class='stonecutter-center'><div class='stonecutter-wheel' aria-hidden='true'></div><div class='progress-bar'></div></div>"
         layout_class = "stonecutter-ui"
         station = "Stonecutter"
+        inner = (
+            "<div class='ui-title-row'><div class='ui-title left'>Inventory</div><div class='ui-title right'>Result</div></div>"
+            "<div class='stonecutting-screen'>"
+            f"<div class='stonecutting-input'>{render_single_stack(main_input, rel_root, items)}</div>"
+            "<div class='stonecutter-center'><div class='stonecutter-wheel' aria-hidden='true'></div><div class='progress-bar'></div></div>"
+            f"<div class='stonecutting-output'>{render_single_stack(main_output, rel_root, items)}</div>"
+            "</div>"
+            f"{render_recipe_meta(meta_parts)}"
+        )
+        return workstation_shell(station, layout_class, inner, recipe.recipe_id, title)
     elif recipe.recipe_type.startswith("create:"):
-        center = "<div class='create-center'><div class='progress-bar'></div></div>"
         layout_class = "create-ui"
         station = title
+        inner = (
+            "<div class='ui-title-row'><div class='ui-title left'>Inputs</div><div class='ui-title right'>Outputs</div></div>"
+            "<div class='create-screen'>"
+            f"<div class='result-stack'>{render_stack_list(ingredient_stacks, rel_root, items)}</div>"
+            "<div class='create-center'><div class='create-cog' aria-hidden='true'></div><div class='progress-bar'></div></div>"
+            f"<div class='result-stack'>{render_stack_list(recipe.outputs, rel_root, items)}</div>"
+            "</div>"
+            f"{render_recipe_meta(meta_parts)}"
+        )
+        return workstation_shell(station, layout_class, inner, recipe.recipe_id, title)
+
     inner = (
-        f"<div class='result-stack'>{render_stack_list(ingredient_stacks, rel_root, items)}</div>"
-        f"{center}"
-        f"<div class='result-stack'>{render_stack_list(recipe.outputs, rel_root, items)}</div>"
-        f"<div class='recipe-meta'>{safe_text(', '.join(meta_parts))}</div>"
+        "<div class='ui-title-row'><div class='ui-title left'>Ingredient</div><div class='ui-title right'>Result</div></div>"
+        "<div class='furnace-screen'>"
+        f"<div class='furnace-input'>{render_single_stack(main_input, rel_root, items)}</div>"
+        "<div class='furnace-center'><div class='furnace-fire' aria-hidden='true'></div></div>"
+        "<div class='furnace-progress'><div class='progress-bar'></div></div>"
+        f"<div class='furnace-output'>{render_single_stack(main_output, rel_root, items)}</div>"
+        f"<div class='furnace-fuel'>{render_slot('', rel_root, items)}</div>"
+        "</div>"
+        + (f"<div class='byproduct-row'><div class='ui-subtitle'>Extra Outputs</div>{render_stack_list(extra_outputs, rel_root, items)}</div>" if extra_outputs else "")
+        + render_recipe_meta(meta_parts)
     )
     return workstation_shell(station, layout_class, inner, recipe.recipe_id, title)
 
 
 def render_smithing_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEntry], title: str) -> str:
-    cols = []
-    for label, key in (("Template", "template"), ("Base", "base"), ("Addition", "addition")):
-        value = recipe.extra.get(key)
-        cols.append(
-            f"<div class='process-col'><h4>{label}</h4>{render_stack_list([{'item': normalize_ingredient(value), 'count': 1}] if value else [], rel_root, items)}</div>"
-        )
-    cols.append(f"<div class='process-col'><h4>Result</h4>{render_stack_list(recipe.outputs, rel_root, items)}</div>")
-    inner = f"<div class='process-grid'>{''.join(cols)}</div>"
+    template = recipe.extra.get("template")
+    base = recipe.extra.get("base")
+    addition = recipe.extra.get("addition")
+    output = recipe.outputs[0] if recipe.outputs else None
+    inner = (
+        "<div class='ui-title-row'><div class='ui-title left'>Smithing</div><div class='ui-title right'>Result</div></div>"
+        "<div class='smithing-screen'>"
+        f"<div class='smithing-template'>{render_single_stack({'item': normalize_ingredient(template), 'count': 1} if template else None, rel_root, items)}</div>"
+        f"<div class='smithing-base'>{render_single_stack({'item': normalize_ingredient(base), 'count': 1} if base else None, rel_root, items)}</div>"
+        f"<div class='smithing-addition'>{render_single_stack({'item': normalize_ingredient(addition), 'count': 1} if addition else None, rel_root, items)}</div>"
+        "<div class='smithing-arrow'><div class='arrow'></div></div>"
+        f"<div class='smithing-output'>{render_single_stack(output, rel_root, items)}</div>"
+        "</div>"
+    )
     return workstation_shell("Smithing Table", "smithing-ui", inner, recipe.recipe_id, title)
 
 
@@ -1103,9 +1150,12 @@ def render_crafting_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
 
     output = recipe.outputs[0] if recipe.outputs else {"item": "unknown", "count": 1}
     inner = (
+        "<div class='ui-title-row'><div class='ui-title left'>Crafting</div><div class='ui-title right'>Result</div></div>"
+        "<div class='crafting-screen'>"
         f"<div class='craft-grid'>{''.join(render_slot(friendly_ingredient_label(value, items), rel_root, items, value if value.startswith('#') or ':' in value else '') for value in rows)}</div>"
-        f"<div class='arrow'>&rarr;</div>"
-        f"<div class='result-stack'>{render_slot(friendly_stack_label(output, items), rel_root, items, str(output.get('item', '')))}</div>"
+        "<div class='arrow'></div>"
+        f"<div class='result-stack single-result'>{render_slot(friendly_stack_label(output, items), rel_root, items, str(output.get('item', '')))}</div>"
+        "</div>"
     )
     return workstation_shell("Crafting Table", "crafting-table", inner, recipe.recipe_id, recipe.recipe_type)
 
@@ -1116,10 +1166,13 @@ def render_shapeless_recipe(recipe: Recipe, rel_root: str, items: dict[str, Item
         ingredients.append("")
     output = recipe.outputs[0] if recipe.outputs else {"item": "unknown", "count": 1}
     inner = (
+        "<div class='ui-title-row'><div class='ui-title left'>Crafting</div><div class='ui-title right'>Result</div></div>"
+        "<div class='crafting-screen'>"
         f"<div class='craft-grid'>{''.join(render_slot(friendly_ingredient_label(value, items), rel_root, items, value if value.startswith('#') or ':' in value else '') for value in ingredients)}</div>"
-        f"<div class='arrow'>&rarr;</div>"
-        f"<div class='result-stack'>{render_slot(friendly_stack_label(output, items), rel_root, items, str(output.get('item', '')))}</div>"
-        f"<div class='recipe-meta'>Shapeless recipe.</div>"
+        "<div class='arrow'></div>"
+        f"<div class='result-stack single-result'>{render_slot(friendly_stack_label(output, items), rel_root, items, str(output.get('item', '')))}</div>"
+        "</div>"
+        "<div class='recipe-meta mc-meta-row'><span class='mc-meta-chip'>Shapeless</span></div>"
     )
     return workstation_shell("Crafting Table", "crafting-table", inner, recipe.recipe_id, recipe.recipe_type)
 
