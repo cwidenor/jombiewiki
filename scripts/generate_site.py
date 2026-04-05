@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import urllib.parse
 import urllib.request
 import zipfile
 from dataclasses import dataclass, field
@@ -54,6 +55,21 @@ class ModEntry:
     version: str
     description: str
     jar_name: str
+    modrinth_project_id: str = ""
+    modrinth_slug: str = ""
+    modrinth_url: str = ""
+    modrinth_icon_url: str = ""
+    modrinth_icon_path: str = ""
+    project_summary: str = ""
+    project_body: str = ""
+    categories: list[str] = field(default_factory=list)
+    client_side: str = ""
+    server_side: str = ""
+    downloads: int = 0
+    issues_url: str = ""
+    source_url: str = ""
+    wiki_url: str = ""
+    discord_url: str = ""
     item_ids: list[str] = field(default_factory=list)
 
 
@@ -99,6 +115,40 @@ def read_text_from_zip(zf: zipfile.ZipFile, name: str) -> str | None:
             return fh.read().decode("utf-8")
     except Exception:
         return None
+
+
+def fetch_json(url: str) -> Any | None:
+    request = urllib.request.Request(url, headers={"User-Agent": "jombiewiki-generator/1.0"})
+    try:
+        with urllib.request.urlopen(request) as response:
+            return json.load(response)
+    except Exception:
+        return None
+
+
+def download_file(url: str, target: Path) -> bool:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    request = urllib.request.Request(url, headers={"User-Agent": "jombiewiki-generator/1.0"})
+    try:
+        with urllib.request.urlopen(request) as response, target.open("wb") as fh:
+            shutil.copyfileobj(response, fh)
+        return True
+    except Exception:
+        return False
+
+
+def strip_markdown(text: str, *, limit: int = 420) -> str:
+    cleaned = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", text or "")
+    cleaned = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", cleaned)
+    cleaned = re.sub(r"`([^`]+)`", r"\1", cleaned)
+    cleaned = re.sub(r"[*_>#-]", " ", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned[:limit].rsplit(" ", 1)[0] + "..." if len(cleaned) > limit else cleaned
+
+
+def parse_modrinth_project_id(download_url: str) -> str:
+    match = re.search(r"/data/([A-Za-z0-9]{8})/", download_url or "")
+    return match.group(1) if match else ""
 
 
 def ensure_pack_available() -> None:
@@ -148,6 +198,34 @@ def load_pack_index() -> dict[str, Any]:
     with zipfile.ZipFile(PACK_PATH) as pack:
         with pack.open("modrinth.index.json") as fh:
             return json.load(fh)
+
+
+def load_modrinth_projects(project_ids: list[str]) -> dict[str, dict[str, Any]]:
+    cache_file = CACHE_DIR / "modrinth_projects.json"
+    cache: dict[str, dict[str, Any]] = {}
+    if cache_file.exists():
+        try:
+            cache = json.loads(cache_file.read_text(encoding="utf-8"))
+        except Exception:
+            cache = {}
+
+    missing = [project_id for project_id in project_ids if project_id and project_id not in cache]
+    for start in range(0, len(missing), 50):
+        batch = missing[start:start + 50]
+        if not batch:
+            continue
+        query = urllib.parse.quote(json.dumps(batch))
+        url = f"https://api.modrinth.com/v2/projects?ids={query}"
+        data = fetch_json(url)
+        if not isinstance(data, list):
+            continue
+        for project in data:
+            if isinstance(project, dict) and project.get("id"):
+                cache[project["id"]] = project
+
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(json.dumps(cache, indent=2), encoding="utf-8")
+    return {project_id: cache[project_id] for project_id in project_ids if project_id in cache}
 
 
 def find_jar_paths(index_data: dict[str, Any]) -> list[Path]:
@@ -221,6 +299,8 @@ def parse_item_language_entries(zf: zipfile.ZipFile, source_mods: list[ModEntry]
             if not match:
                 continue
             entry_type, namespace, raw_name = match.groups()
+            if not re.fullmatch(r"[a-z0-9_./-]+", raw_name):
+                continue
             item_id = f"{namespace}:{raw_name}"
             owner_mod_id = namespace if namespace in known_mod_ids else (source_mods[0].mod_id if len(source_mods) == 1 else namespace)
             entries[item_id] = ItemEntry(
@@ -346,6 +426,13 @@ def load_catalog() -> tuple[list[Path], dict[str, ModEntry], dict[str, ItemEntry
     index_data = load_pack_index()
     download_missing_mod_jars(index_data)
     jar_paths = find_jar_paths(index_data)
+    jar_project_ids: dict[str, str] = {}
+    for file_entry in index_data.get("files", []):
+        path = file_entry.get("path", "")
+        if not path.startswith("mods/"):
+            continue
+        jar_project_ids[Path(path).name] = parse_modrinth_project_id((file_entry.get("downloads") or [""])[0])
+    project_meta = load_modrinth_projects(sorted({value for value in jar_project_ids.values() if value}))
 
     mods: dict[str, ModEntry] = {}
     items: dict[str, ItemEntry] = {}
@@ -354,6 +441,24 @@ def load_catalog() -> tuple[list[Path], dict[str, ModEntry], dict[str, ItemEntry
         with zipfile.ZipFile(jar_path) as zf:
             source_mods = parse_mod_metadata(zf, jar_path.name)
             for mod in source_mods:
+                project_id = jar_project_ids.get(jar_path.name, "")
+                if project_id and project_id in project_meta:
+                    project = project_meta[project_id]
+                    mod.modrinth_project_id = project_id
+                    mod.modrinth_slug = project.get("slug", "") or ""
+                    if mod.modrinth_slug:
+                        mod.modrinth_url = f"https://modrinth.com/mod/{mod.modrinth_slug}"
+                    mod.modrinth_icon_url = project.get("icon_url", "") or ""
+                    mod.project_summary = project.get("description", "") or ""
+                    mod.project_body = strip_markdown(project.get("body", "") or "")
+                    mod.categories = list(project.get("categories", []) or [])
+                    mod.client_side = project.get("client_side", "") or ""
+                    mod.server_side = project.get("server_side", "") or ""
+                    mod.downloads = int(project.get("downloads", 0) or 0)
+                    mod.issues_url = project.get("issues_url", "") or ""
+                    mod.source_url = project.get("source_url", "") or ""
+                    mod.wiki_url = project.get("wiki_url", "") or ""
+                    mod.discord_url = project.get("discord_url", "") or ""
                 mods.setdefault(mod.mod_id, mod)
 
             for item in parse_item_language_entries(zf, source_mods, jar_path.name):
@@ -416,6 +521,104 @@ def candidate_texture_names(item_id: str) -> list[str]:
     ]
 
 
+def candidate_model_names(item_id: str) -> list[str]:
+    namespace, _, path = item_id.partition(":")
+    if not namespace or not path:
+        return []
+    return [
+        f"assets/{namespace}/items/{path}.json",
+        f"assets/{namespace}/models/item/{path}.json",
+        f"assets/{namespace}/models/block/{path}.json",
+    ]
+
+
+def model_ref_to_path(model_ref: str) -> str:
+    namespace, _, path = model_ref.partition(":")
+    namespace = namespace or "minecraft"
+    return f"assets/{namespace}/models/{path}.json"
+
+
+def texture_ref_to_path(texture_ref: str) -> str:
+    namespace, _, path = texture_ref.partition(":")
+    namespace = namespace or "minecraft"
+    return f"assets/{namespace}/textures/{path}.png"
+
+
+def extract_texture_from_model(
+    zf: zipfile.ZipFile,
+    model_ref: str,
+    names: set[str],
+    visited: set[str] | None = None,
+) -> str:
+    visited = visited or set()
+    model_path = model_ref_to_path(model_ref)
+    if model_path in visited or model_path not in names:
+        return ""
+    visited.add(model_path)
+    model_data = read_json_from_zip(zf, model_path)
+    if not isinstance(model_data, dict):
+        return ""
+
+    textures = model_data.get("textures", {}) if isinstance(model_data.get("textures"), dict) else {}
+    for key in ("layer0", "all", "top", "side", "front", "particle"):
+        value = textures.get(key)
+        if isinstance(value, str):
+            if value.startswith("#"):
+                alias = textures.get(value[1:])
+                if isinstance(alias, str):
+                    value = alias
+                else:
+                    continue
+            candidate = texture_ref_to_path(value)
+            if candidate in names:
+                return candidate
+
+    parent = model_data.get("parent")
+    if isinstance(parent, str):
+        return extract_texture_from_model(zf, parent, names, visited)
+    return ""
+
+
+def resolve_item_texture(zf: zipfile.ZipFile, item_id: str, names: set[str]) -> str:
+    for candidate in candidate_texture_names(item_id):
+        if candidate in names:
+            return candidate
+
+    for model_path in candidate_model_names(item_id):
+        if model_path not in names:
+            continue
+        model_data = read_json_from_zip(zf, model_path)
+        if not isinstance(model_data, dict):
+            continue
+        model_ref = ""
+        if model_path.startswith("assets/") and "/items/" in model_path:
+            model_field = model_data.get("model")
+            if isinstance(model_field, str):
+                model_ref = model_field
+            elif isinstance(model_field, dict) and isinstance(model_field.get("model"), str):
+                model_ref = model_field["model"]
+        else:
+            namespace = item_id.partition(":")[0] or "minecraft"
+            model_ref = f"{namespace}:{model_path.split(f'assets/{namespace}/models/', 1)[1].removesuffix('.json')}"
+
+        if model_ref:
+            texture_path = extract_texture_from_model(zf, model_ref, names)
+            if texture_path:
+                return texture_path
+    return ""
+
+
+def copy_asset_from_jar(zf: zipfile.ZipFile, asset_path: str, target_root: Path) -> str:
+    asset_rel = Path(asset_path).relative_to("assets")
+    relative = Path("assets") / asset_rel.parts[0] / Path(*asset_rel.parts[1:])
+    target = target_root / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not target.exists():
+        with zf.open(asset_path) as src, target.open("wb") as dst:
+            shutil.copyfileobj(src, dst)
+    return relative.as_posix()
+
+
 def extract_item_icons(jar_paths: list[Path], items: dict[str, ItemEntry]) -> None:
     texture_root = SITE_DIR / "assets" / "textures"
     texture_root.mkdir(parents=True, exist_ok=True)
@@ -426,18 +629,31 @@ def extract_item_icons(jar_paths: list[Path], items: dict[str, ItemEntry]) -> No
             for item in items.values():
                 if item.icon_path:
                     continue
-                for candidate in candidate_texture_names(item.item_id):
-                    if candidate not in names:
-                        continue
-                    asset_rel = Path(candidate).relative_to("assets")
-                    relative = Path("assets") / "textures" / asset_rel.parts[0] / Path(*asset_rel.parts[2:])
-                    target = SITE_DIR / relative
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    if not target.exists():
-                        with zf.open(candidate) as src, target.open("wb") as dst:
-                            shutil.copyfileobj(src, dst)
-                    item.icon_path = relative.as_posix()
-                    break
+                texture_path = resolve_item_texture(zf, item.item_id, names)
+                if not texture_path:
+                    continue
+                asset_rel = Path(texture_path).relative_to("assets")
+                relative = Path("assets") / "textures" / asset_rel.parts[0] / Path(*asset_rel.parts[2:])
+                target = SITE_DIR / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                if not target.exists():
+                    with zf.open(texture_path) as src, target.open("wb") as dst:
+                        shutil.copyfileobj(src, dst)
+                item.icon_path = relative.as_posix()
+
+
+def extract_mod_icons(mods: dict[str, ModEntry]) -> None:
+    icon_root = SITE_DIR / "assets" / "mod-icons"
+    icon_root.mkdir(parents=True, exist_ok=True)
+    for mod in mods.values():
+        if not mod.modrinth_icon_url:
+            continue
+        parsed = urllib.parse.urlparse(mod.modrinth_icon_url)
+        suffix = Path(parsed.path).suffix or ".png"
+        target = icon_root / f"{slugify(mod.mod_id)}{suffix}"
+        if not target.exists() and not download_file(mod.modrinth_icon_url, target):
+            continue
+        mod.modrinth_icon_path = f"assets/mod-icons/{target.name}"
 
 
 def item_icon_html(item_id: str, rel_root: str, items: dict[str, ItemEntry], *, large: bool = False) -> str:
@@ -446,6 +662,13 @@ def item_icon_html(item_id: str, rel_root: str, items: dict[str, ItemEntry], *, 
         return ""
     size_class = " large" if large else ""
     return f'<img class="icon{size_class}" src="{rel_root}/{safe_text(item.icon_path)}" alt="{safe_text(item.display_name)}">'
+
+
+def mod_icon_html(mod: ModEntry, rel_root: str, *, large: bool = False) -> str:
+    if not mod.modrinth_icon_path:
+        return ""
+    size_class = " large" if large else ""
+    return f'<img class="icon{size_class}" src="{rel_root}/{safe_text(mod.modrinth_icon_path)}" alt="{safe_text(mod.name)}">'
 
 
 def render_slot(label: str, rel_root: str, items: dict[str, ItemEntry]) -> str:
@@ -538,11 +761,24 @@ def render_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEntry]) ->
 
 
 def build_home(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> None:
+    featured = [
+        "minecolonies",
+        "create",
+        "irons_spellbooks",
+        "bettercombat",
+        "endrem",
+        "simple_voice_chat",
+    ]
+    featured_links = "".join(
+        f"<span class='chip'><a href='{safe_text(mod_url(mod_id))}'>{safe_text(mods[mod_id].name)}</a></span>"
+        for mod_id in featured
+        if mod_id in mods
+    )
     body = f"""
     <div class="hero">
-      <div class="kicker">Generated Catalog</div>
+      <div class="kicker">Pack Wiki</div>
       <h1>JombiePack Item and Mod Catalog</h1>
-      <p class="muted">A GitHub Pages-ready site generated from the actual JombiePack archive, mod jars, and bundled overrides.</p>
+      <p class="muted">JombiePack is a NeoForge 1.21.1 pack built around co-op survival, large-scale exploration, active combat, colony building, Create machinery, and a strong atmosphere layer.</p>
       <div class="statlist">
         <div class="stat"><span class="label">Mods</span><strong>{len(mods)}</strong></div>
         <div class="stat"><span class="label">Item or Block Entries</span><strong>{len(items)}</strong></div>
@@ -556,6 +792,11 @@ def build_home(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> None:
     </div>
 
     <div class="grid cols-2">
+      <div class="panel">
+        <h2>Pack Focus</h2>
+        <p class="muted">Expect upgraded structures, more dangerous roaming, spell and weapon build variety, long-term settlement play through MineColonies, and a slower End progression path through End Remastered.</p>
+        <div class="chips">{featured_links}</div>
+      </div>
       <div class="panel">
         <h2>Browse</h2>
         <p><a href="mods/index.html">All mods</a></p>
@@ -578,8 +819,9 @@ def build_mod_index(mods: dict[str, ModEntry]) -> None:
     mod_dir.mkdir(parents=True, exist_ok=True)
     rows = []
     for mod in mods.values():
+        icon = mod_icon_html(mod, "..")
         rows.append(
-            f"<tr><td><a href='{safe_text(slugify(mod.mod_id))}.html'>{safe_text(mod.name)}</a></td>"
+            f"<tr><td><div class='entry-head'>{icon}<a href='{safe_text(slugify(mod.mod_id))}.html'>{safe_text(mod.name)}</a></div></td>"
             f"<td class='path'>{safe_text(mod.mod_id)}</td><td>{len(mod.item_ids)}</td></tr>"
         )
     body = f"""
@@ -617,17 +859,49 @@ def build_mod_pages(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> N
                 """
             )
         description = safe_text(mod.description) if mod.description else "No description was extracted from the jar metadata."
+        summary = safe_text(mod.project_summary or mod.description or "No project summary was available.")
+        excerpt = safe_text(mod.project_body)
+        links = []
+        if mod.modrinth_url:
+            links.append(f"<span class='chip'><a href='{safe_text(mod.modrinth_url)}'>Modrinth Page</a></span>")
+        if mod.wiki_url:
+            links.append(f"<span class='chip'><a href='{safe_text(mod.wiki_url)}'>Wiki</a></span>")
+        if mod.source_url:
+            links.append(f"<span class='chip'><a href='{safe_text(mod.source_url)}'>Source</a></span>")
+        if mod.issues_url:
+            links.append(f"<span class='chip'><a href='{safe_text(mod.issues_url)}'>Issues</a></span>")
+        if mod.discord_url:
+            links.append(f"<span class='chip'><a href='{safe_text(mod.discord_url)}'>Discord</a></span>")
+        icon = mod_icon_html(mod, "..", large=True)
+        info_chips = []
+        if mod.categories:
+            info_chips.extend(f"<span class='chip'>{safe_text(category)}</span>" for category in mod.categories[:6])
+        if mod.client_side:
+            info_chips.append(f"<span class='chip'>Client: {safe_text(mod.client_side)}</span>")
+        if mod.server_side:
+            info_chips.append(f"<span class='chip'>Server: {safe_text(mod.server_side)}</span>")
+        if mod.downloads:
+            info_chips.append(f"<span class='chip'>Downloads: {mod.downloads:,}</span>")
         body = f"""
         <div class="breadcrumbs"><a href="../index.html">Home</a> / <a href="index.html">Mods</a> / {safe_text(mod.mod_id)}</div>
         <div class="hero">
           <div class="kicker">Mod Page</div>
-          <h1>{safe_text(mod.name)}</h1>
+          <div class="entry-head">
+            {icon}
+            <h1>{safe_text(mod.name)}</h1>
+          </div>
           <div class="chips">
             <span class="chip">Mod ID: {safe_text(mod.mod_id)}</span>
             <span class="chip">Version: {safe_text(mod.version or "unknown")}</span>
             <span class="chip">Entries: {len(mod.item_ids)}</span>
           </div>
-          <p class="muted">{description}</p>
+          <p class="muted">{summary}</p>
+          <div class="chips">{''.join(links)}</div>
+          <div class="chips" style="margin-top:10px;">{''.join(info_chips)}</div>
+        </div>
+        <div class="panel">
+          <h2>About This Mod</h2>
+          <p class="muted">{excerpt or description}</p>
         </div>
         <div class="panel">
           <h2>Items and Blocks</h2>
@@ -642,23 +916,35 @@ def build_mod_pages(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> N
 def build_item_index(items: dict[str, ItemEntry]) -> None:
     item_dir = SITE_DIR / "items"
     item_dir.mkdir(parents=True, exist_ok=True)
+    mods = sorted({item.owner_mod_id for item in items.values()})
     rows = []
     for item in items.values():
+        icon = item_icon_html(item.item_id, "..", items)
         rows.append(
-            f"<tr><td><a href='{safe_text(item.namespace)}/{safe_text(slugify(item.item_id.split(':', 1)[1]))}.html'>{safe_text(item.display_name)}</a></td>"
+            f"<tr data-name='{safe_text(item.display_name)}' data-id='{safe_text(item.item_id)}' data-mod='{safe_text(item.owner_mod_id)}' data-type='{safe_text(item.entry_type)}'>"
+            f"<td><div class='entry-head'>{icon}<a href='{safe_text(item.namespace)}/{safe_text(slugify(item.item_id.split(':', 1)[1]))}.html'>{safe_text(item.display_name)}</a></div></td>"
             f"<td class='path'>{safe_text(item.item_id)}</td>"
             f"<td><a href='../mods/{safe_text(slugify(item.owner_mod_id))}.html'>{safe_text(item.owner_mod_id)}</a></td>"
-            f"<td>{len(item.recipes)}</td></tr>"
+            f"<td>{len(item.recipes)}</td>"
+            f"<td>{safe_text(item.entry_type)}</td></tr>"
         )
+    mod_options = "".join(f"<option value='{safe_text(mod_id)}'>{safe_text(mod_id)}</option>" for mod_id in mods)
     body = f"""
     <div class="breadcrumbs"><a href="../index.html">Home</a> / Items</div>
     <div class="panel">
       <h1>Items and Block Entries</h1>
+      <div class="filter-row">
+        <input id="item-filter-search" class="searchbox" placeholder="Filter by name or registry id">
+        <select id="item-filter-mod"><option value="">All mods</option>{mod_options}</select>
+        <select id="item-filter-type"><option value="">All types</option><option value="item">Items</option><option value="block">Blocks</option></select>
+      </div>
       <table class="list-table">
-        <thead><tr><th>Name</th><th>Registry ID</th><th>Mod</th><th>Recipes</th></tr></thead>
-        <tbody>{''.join(rows)}</tbody>
+        <thead><tr><th>Name</th><th>Registry ID</th><th>Mod</th><th>Recipes</th><th>Type</th></tr></thead>
+        <tbody id="item-table-body">{''.join(rows)}</tbody>
       </table>
     </div>
+    <script src="../assets/search.js"></script>
+    <script>setupItemFilters("item-filter-search", "item-filter-mod", "item-filter-type", "item-table-body");</script>
     """
     (item_dir / "index.html").write_text(page("Items", body, rel_root=".."), encoding="utf-8")
 
@@ -719,6 +1005,7 @@ def main() -> None:
     SITE_DIR.mkdir(parents=True, exist_ok=True)
     (SITE_DIR / ".nojekyll").write_text("", encoding="utf-8")
     copy_assets()
+    extract_mod_icons(mods)
     extract_item_icons(jar_paths, items)
     build_home(mods, items)
     build_mod_index(mods)

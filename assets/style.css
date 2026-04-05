@@ -129,6 +129,23 @@ a:hover {
   font-size: 1rem;
 }
 
+.filter-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.filter-row select {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fffdf8;
+  color: var(--ink);
+  font-size: 1rem;
+}
+
 .list-table {
   width: 100%;
   border-collapse: collapse;
@@ -291,6 +308,10 @@ a:hover {
 
 @media (max-width: 860px) {
   .grid.cols-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-row {
     grid-template-columns: 1fr;
   }
 

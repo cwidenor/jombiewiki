@@ -43,3 +43,31 @@ async function setupSearch(inputId, resultsId, indexPath) {
 
   input.addEventListener("input", () => render(input.value));
 }
+
+function setupItemFilters(searchId, modId, typeId, tableBodyId) {
+  const search = document.getElementById(searchId);
+  const mod = document.getElementById(modId);
+  const type = document.getElementById(typeId);
+  const tableBody = document.getElementById(tableBodyId);
+  if (!search || !mod || !type || !tableBody) return;
+
+  const rows = Array.from(tableBody.querySelectorAll("tr"));
+  const apply = () => {
+    const q = search.value.trim().toLowerCase();
+    const modValue = mod.value;
+    const typeValue = type.value;
+
+    rows.forEach((row) => {
+      const hay = [row.dataset.name, row.dataset.id, row.dataset.mod, row.dataset.type].join(" ").toLowerCase();
+      const modOk = !modValue || row.dataset.mod === modValue;
+      const typeOk = !typeValue || row.dataset.type === typeValue;
+      const queryOk = !q || hay.includes(q);
+      row.style.display = modOk && typeOk && queryOk ? "" : "none";
+    });
+  };
+
+  search.addEventListener("input", apply);
+  mod.addEventListener("change", apply);
+  type.addEventListener("change", apply);
+  apply();
+}
