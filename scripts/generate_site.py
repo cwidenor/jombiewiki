@@ -46,6 +46,7 @@ class ItemEntry:
     source_jar: str
     icon_path: str = ""
     recipes: list[Recipe] = field(default_factory=list)
+    usages: list[Recipe] = field(default_factory=list)
 
 
 @dataclass
@@ -79,6 +80,10 @@ def slugify(value: str) -> str:
 
 def safe_text(value: Any) -> str:
     return html.escape("" if value is None else str(value))
+
+
+def lowered_keys(raw: dict[str, Any]) -> dict[str, Any]:
+    return {str(key).lower(): value for key, value in raw.items()}
 
 
 def fallback_display_name(item_id: str) -> str:
@@ -442,36 +447,39 @@ def normalize_item_stack(raw: Any) -> dict[str, Any] | None:
                 return normalized
         return None
     if isinstance(raw, dict):
-        if "item" in raw:
-            item_value = raw["item"]
+        lowered = lowered_keys(raw)
+        count_value = lowered.get("count", 1)
+        chance_value = lowered.get("chance")
+        if "item" in lowered:
+            item_value = lowered["item"]
             if isinstance(item_value, str):
-                stack = {"item": item_value, "count": int(raw.get("count", 1))}
-                if "chance" in raw:
-                    stack["chance"] = raw["chance"]
+                stack = {"item": item_value.lower(), "count": int(count_value)}
+                if chance_value is not None:
+                    stack["chance"] = chance_value
                 return stack
             nested = normalize_item_stack(item_value)
             if nested:
-                nested["count"] = int(raw.get("count", nested.get("count", 1)))
-                if "chance" in raw:
-                    nested["chance"] = raw["chance"]
+                nested["count"] = int(count_value or nested.get("count", 1))
+                if chance_value is not None:
+                    nested["chance"] = chance_value
                 return nested
-        if "id" in raw:
-            id_value = raw["id"]
+        if "id" in lowered:
+            id_value = lowered["id"]
             if isinstance(id_value, str):
-                stack = {"item": id_value, "count": int(raw.get("count", 1))}
-                if "chance" in raw:
-                    stack["chance"] = raw["chance"]
+                stack = {"item": id_value.lower(), "count": int(count_value)}
+                if chance_value is not None:
+                    stack["chance"] = chance_value
                 return stack
             nested = normalize_item_stack(id_value)
             if nested:
-                nested["count"] = int(raw.get("count", nested.get("count", 1)))
-                if "chance" in raw:
-                    nested["chance"] = raw["chance"]
+                nested["count"] = int(count_value or nested.get("count", 1))
+                if chance_value is not None:
+                    nested["chance"] = chance_value
                 return nested
-        if "result" in raw:
-            return normalize_item_stack(raw["result"])
-        if "basePredicate" in raw:
-            return normalize_item_stack(raw["basePredicate"])
+        if "result" in lowered:
+            return normalize_item_stack(lowered["result"])
+        if "basepredicate" in lowered:
+            return normalize_item_stack(lowered["basepredicate"])
     return None
 
 
@@ -484,14 +492,17 @@ def normalize_ingredient(raw: Any) -> str:
         values = [normalize_ingredient(item) for item in raw]
         return " / ".join(value for value in values if value)
     if isinstance(raw, dict):
-        if "item" in raw:
-            return raw["item"]
-        if "tag" in raw:
-            return f"#{raw['tag']}"
-        if "items" in raw:
-            return normalize_ingredient(raw["items"])
-        if "ingredient" in raw:
-            return normalize_ingredient(raw["ingredient"])
+        lowered = lowered_keys(raw)
+        if "item" in lowered and isinstance(lowered["item"], str):
+            return lowered["item"].lower()
+        if "tag" in lowered and isinstance(lowered["tag"], str):
+            return f"#{lowered['tag'].lower()}"
+        if "ingredients" in lowered:
+            return normalize_ingredient(lowered["ingredients"])
+        if "items" in lowered:
+            return normalize_ingredient(lowered["items"])
+        if "ingredient" in lowered:
+            return normalize_ingredient(lowered["ingredient"])
     return str(raw)
 
 
@@ -503,6 +514,38 @@ def ingredient_list_from_recipe(recipe: Recipe) -> list[str]:
         if key in recipe.extra:
             values.append(normalize_ingredient(recipe.extra[key]))
     return [value for value in values if value]
+
+
+def ingredient_item_ids_from_raw(raw: Any) -> list[str]:
+    values: list[str] = []
+    if raw is None:
+        return values
+    if isinstance(raw, list):
+        for item in raw:
+            values.extend(ingredient_item_ids_from_raw(item))
+        return values
+    if isinstance(raw, dict):
+        lowered = lowered_keys(raw)
+        if "item" in lowered and isinstance(lowered["item"], str):
+            values.append(lowered["item"].lower())
+        elif "ingredients" in lowered:
+            values.extend(ingredient_item_ids_from_raw(lowered["ingredients"]))
+        elif "items" in lowered:
+            values.extend(ingredient_item_ids_from_raw(lowered["items"]))
+        elif "ingredient" in lowered:
+            values.extend(ingredient_item_ids_from_raw(lowered["ingredient"]))
+        return values
+    return values
+
+
+def ingredient_item_ids_from_recipe(recipe: Recipe) -> list[str]:
+    values: list[str] = []
+    for raw in recipe.ingredients:
+        values.extend(ingredient_item_ids_from_raw(raw))
+    for key in ("ingredient", "base", "addition", "template"):
+        if key in recipe.extra:
+            values.extend(ingredient_item_ids_from_raw(recipe.extra[key]))
+    return list(dict.fromkeys(value for value in values if value))
 
 
 def parse_recipe_data(mod_id: str, recipe_id: str, data: dict[str, Any]) -> Recipe:
@@ -570,6 +613,99 @@ def parse_recipes(zf: zipfile.ZipFile, mod_id: str) -> list[Recipe]:
     return recipes
 
 
+def parse_tag_files(zf: zipfile.ZipFile) -> dict[str, set[str]]:
+    tags: dict[str, set[str]] = {}
+    for name in zf.namelist():
+        if not name.startswith("data/") or not name.endswith(".json"):
+            continue
+        if "/tags/item/" not in name and "/tags/items/" not in name and "/tags/block/" not in name and "/tags/blocks/" not in name:
+            continue
+        data = read_json_from_zip(zf, name)
+        if not isinstance(data, dict):
+            continue
+        parts = Path(name).parts
+        try:
+            namespace = parts[1]
+            tag_folder_index = next(i for i, part in enumerate(parts) if part == "tags")
+            kind = parts[tag_folder_index + 1]
+            tag_path = "/".join(parts[tag_folder_index + 2:]).removesuffix(".json")
+        except Exception:
+            continue
+        tag_id = f"{namespace}:{tag_path}"
+        values = set()
+        for value in data.get("values", []):
+            if isinstance(value, str):
+                values.add(value)
+            elif isinstance(value, dict) and isinstance(value.get("id"), str):
+                values.add(value["id"])
+        tags[tag_id] = values
+    return tags
+
+
+def resolve_tag_index(tag_index: dict[str, set[str]]) -> dict[str, set[str]]:
+    resolved: dict[str, set[str]] = {}
+
+    def resolve(tag_id: str, seen: set[str] | None = None) -> set[str]:
+        if tag_id in resolved:
+            return resolved[tag_id]
+        seen = seen or set()
+        if tag_id in seen:
+            return set()
+        seen.add(tag_id)
+        results: set[str] = set()
+        for value in tag_index.get(tag_id, set()):
+            if value.startswith("#"):
+                results.update(resolve(value[1:], seen.copy()))
+            elif ":" in value:
+                results.add(value)
+        resolved[tag_id] = results
+        return results
+
+    for tag_id in tag_index:
+        resolve(tag_id)
+    return resolved
+
+
+def heuristic_tag_items(tag_id: str, items: dict[str, ItemEntry]) -> set[str]:
+    namespace, _, path = tag_id.partition(":")
+    if namespace not in {"c", "forge", "minecraft"}:
+        return set()
+
+    parts = [part for part in path.split("/") if part]
+    if not parts:
+        return set()
+
+    category = parts[0]
+    material_parts = parts[1:]
+    singular_map = {
+        "ingots": ["ingot"],
+        "nuggets": ["nugget"],
+        "dusts": ["dust"],
+        "gems": ["gem"],
+        "plates": ["plate"],
+        "rods": ["rod"],
+        "gears": ["gear"],
+        "ores": ["ore"],
+        "storage_blocks": ["block"],
+        "raw_materials": ["raw"],
+        "strings": ["string"],
+        "ropes": ["rope"],
+        "planks": ["planks"],
+        "logs": ["log"],
+        "wools": ["wool"],
+    }
+    wanted_tokens = singular_map.get(category, [category.rstrip("s")])
+    wanted_tokens.extend(material_parts)
+    wanted_tokens = [token.replace("-", "_").lower() for token in wanted_tokens if token]
+
+    matches: set[str] = set()
+    for item_id, item in items.items():
+        item_path = item_id.partition(":")[2].lower()
+        if all(token in item_path for token in wanted_tokens):
+            matches.add(item_id)
+    return matches
+
+
 def load_catalog() -> tuple[list[Path], dict[str, ModEntry], dict[str, ItemEntry]]:
     index_data = load_pack_index()
     download_missing_mod_jars(index_data)
@@ -584,10 +720,15 @@ def load_catalog() -> tuple[list[Path], dict[str, ModEntry], dict[str, ItemEntry
 
     mods: dict[str, ModEntry] = {}
     items: dict[str, ItemEntry] = {}
+    all_recipes: list[Recipe] = []
+    tag_index: dict[str, set[str]] = {}
 
     for jar_path in jar_paths:
         with zipfile.ZipFile(jar_path) as zf:
             source_mods = parse_mod_metadata(zf, jar_path.name)
+            parsed_tags = parse_tag_files(zf)
+            for tag_id, values in parsed_tags.items():
+                tag_index.setdefault(tag_id, set()).update(values)
             for mod in source_mods:
                 project_id = jar_project_ids.get(jar_path.name, "")
                 if project_id and project_id in project_meta:
@@ -616,6 +757,7 @@ def load_catalog() -> tuple[list[Path], dict[str, ModEntry], dict[str, ItemEntry
 
             primary_mod_id = source_mods[0].mod_id
             for recipe in parse_recipes(zf, primary_mod_id):
+                all_recipes.append(recipe)
                 for output in recipe.outputs:
                     item_id = output["item"]
                     if item_id not in items:
@@ -637,6 +779,40 @@ def load_catalog() -> tuple[list[Path], dict[str, ModEntry], dict[str, ItemEntry
         if (item.namespace in mods or item.namespace == "minecraft")
         and not (is_internal_item_name(item.item_id.partition(":")[2]) and len(item.recipes) == 0)
     }
+
+    resolved_tags = resolve_tag_index(tag_index)
+
+    for recipe in all_recipes:
+        for ingredient_id in ingredient_item_ids_from_recipe(recipe):
+            if ingredient_id in items:
+                items[ingredient_id].usages.append(recipe)
+        for ingredient in ingredient_list_from_recipe(recipe):
+            if not ingredient.startswith("#"):
+                continue
+            tag_id = ingredient[1:]
+            matching_items = resolved_tags.get(tag_id, set()) or heuristic_tag_items(tag_id, items)
+            for item_id in matching_items:
+                if item_id in items:
+                    items[item_id].usages.append(recipe)
+
+    for item in items.values():
+        seen_recipe_ids: set[str] = set()
+        deduped_recipes: list[Recipe] = []
+        for recipe in item.recipes:
+            if recipe.recipe_id in seen_recipe_ids:
+                continue
+            seen_recipe_ids.add(recipe.recipe_id)
+            deduped_recipes.append(recipe)
+        item.recipes = deduped_recipes
+
+        seen_usage_ids: set[str] = set()
+        deduped_usages: list[Recipe] = []
+        for recipe in item.usages:
+            if recipe.recipe_id in seen_usage_ids:
+                continue
+            seen_usage_ids.add(recipe.recipe_id)
+            deduped_usages.append(recipe)
+        item.usages = deduped_usages
 
     for item in items.values():
         mods.setdefault(
@@ -858,6 +1034,23 @@ def render_stack_list(stacks: list[dict[str, Any]], rel_root: str, items: dict[s
     ) + "</div>"
 
 
+def workstation_shell(station: str, layout_class: str, inner_html: str, recipe_id: str, recipe_type: str) -> str:
+    return f"""
+    <div class="recipe-card workstation">
+      <div class="workstation-badge">{safe_text(station)}</div>
+      <div class="recipe-header">
+        <strong>{safe_text(recipe_type)}</strong>
+        <span class="muted path">{safe_text(recipe_id)}</span>
+      </div>
+      <div class="workstation-frame">
+        <div class="crafting-layout {safe_text(layout_class)}">
+          {inner_html}
+        </div>
+      </div>
+    </div>
+    """
+
+
 def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEntry], title: str) -> str:
     ingredient_stacks = []
     for value in ingredient_list_from_recipe(recipe):
@@ -866,25 +1059,24 @@ def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEn
     for key in ("processing_time", "processingTime", "cookingtime", "experience", "heatRequirement"):
         if key in recipe.extra:
             meta_parts.append(f"{key}: {recipe.extra[key]}")
-    return f"""
-    <div class="recipe-card">
-      <div class="recipe-header">
-        <strong>{safe_text(title)}</strong>
-        <span class="muted path">{safe_text(recipe.recipe_id)}</span>
-      </div>
-      <div class="process-grid">
-        <div class="process-col">
-          <h4>Inputs</h4>
-          {render_stack_list(ingredient_stacks, rel_root, items)}
-        </div>
-        <div class="process-col">
-          <h4>Outputs</h4>
-          {render_stack_list(recipe.outputs, rel_root, items)}
-        </div>
-      </div>
-      <div class="recipe-meta">{safe_text(', '.join(meta_parts))}</div>
-    </div>
-    """
+    center = "<div class='furnace-center'><div class='furnace-fire' aria-hidden='true'></div><div class='progress-bar'></div></div>"
+    layout_class = "furnace-ui"
+    station = title
+    if recipe.recipe_type == "minecraft:stonecutting":
+        center = "<div class='stonecutter-center'><div class='stonecutter-wheel' aria-hidden='true'></div><div class='progress-bar'></div></div>"
+        layout_class = "stonecutter-ui"
+        station = "Stonecutter"
+    elif recipe.recipe_type.startswith("create:"):
+        center = "<div class='create-center'><div class='progress-bar'></div></div>"
+        layout_class = "create-ui"
+        station = title
+    inner = (
+        f"<div class='result-stack'>{render_stack_list(ingredient_stacks, rel_root, items)}</div>"
+        f"{center}"
+        f"<div class='result-stack'>{render_stack_list(recipe.outputs, rel_root, items)}</div>"
+        f"<div class='recipe-meta'>{safe_text(', '.join(meta_parts))}</div>"
+    )
+    return workstation_shell(station, layout_class, inner, recipe.recipe_id, title)
 
 
 def render_smithing_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEntry], title: str) -> str:
@@ -895,17 +1087,8 @@ def render_smithing_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
             f"<div class='process-col'><h4>{label}</h4>{render_stack_list([{'item': normalize_ingredient(value), 'count': 1}] if value else [], rel_root, items)}</div>"
         )
     cols.append(f"<div class='process-col'><h4>Result</h4>{render_stack_list(recipe.outputs, rel_root, items)}</div>")
-    return f"""
-    <div class="recipe-card">
-      <div class="recipe-header">
-        <strong>{safe_text(title)}</strong>
-        <span class="muted path">{safe_text(recipe.recipe_id)}</span>
-      </div>
-      <div class="process-grid">
-        {''.join(cols)}
-      </div>
-    </div>
-    """
+    inner = f"<div class='process-grid'>{''.join(cols)}</div>"
+    return workstation_shell("Smithing Table", "smithing-ui", inner, recipe.recipe_id, title)
 
 
 def render_crafting_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEntry]) -> str:
@@ -919,19 +1102,12 @@ def render_crafting_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
             rows.append("" if char == " " else normalize_ingredient(recipe.key.get(char)))
 
     output = recipe.outputs[0] if recipe.outputs else {"item": "unknown", "count": 1}
-    return f"""
-    <div class="recipe-card">
-      <div class="recipe-header">
-        <strong>{safe_text(recipe.recipe_type)}</strong>
-        <span class="muted path">{safe_text(recipe.recipe_id)}</span>
-      </div>
-      <div class="crafting-layout">
-        <div class="craft-grid">{''.join(render_slot(friendly_ingredient_label(value, items), rel_root, items, value if value.startswith('#') or ':' in value else '') for value in rows)}</div>
-        <div class="arrow">&rarr;</div>
-        <div class="result-stack">{render_slot(friendly_stack_label(output, items), rel_root, items, str(output.get('item', '')))}</div>
-      </div>
-    </div>
-    """
+    inner = (
+        f"<div class='craft-grid'>{''.join(render_slot(friendly_ingredient_label(value, items), rel_root, items, value if value.startswith('#') or ':' in value else '') for value in rows)}</div>"
+        f"<div class='arrow'>&rarr;</div>"
+        f"<div class='result-stack'>{render_slot(friendly_stack_label(output, items), rel_root, items, str(output.get('item', '')))}</div>"
+    )
+    return workstation_shell("Crafting Table", "crafting-table", inner, recipe.recipe_id, recipe.recipe_type)
 
 
 def render_shapeless_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEntry]) -> str:
@@ -939,20 +1115,13 @@ def render_shapeless_recipe(recipe: Recipe, rel_root: str, items: dict[str, Item
     while len(ingredients) < 9:
         ingredients.append("")
     output = recipe.outputs[0] if recipe.outputs else {"item": "unknown", "count": 1}
-    return f"""
-    <div class="recipe-card">
-      <div class="recipe-header">
-        <strong>{safe_text(recipe.recipe_type)}</strong>
-        <span class="muted path">{safe_text(recipe.recipe_id)}</span>
-      </div>
-      <div class="crafting-layout">
-        <div class="craft-grid">{''.join(render_slot(friendly_ingredient_label(value, items), rel_root, items, value if value.startswith('#') or ':' in value else '') for value in ingredients)}</div>
-        <div class="arrow">&rarr;</div>
-        <div class="result-stack">{render_slot(friendly_stack_label(output, items), rel_root, items, str(output.get('item', '')))}</div>
-      </div>
-      <div class="recipe-meta">Shapeless recipe.</div>
-    </div>
-    """
+    inner = (
+        f"<div class='craft-grid'>{''.join(render_slot(friendly_ingredient_label(value, items), rel_root, items, value if value.startswith('#') or ':' in value else '') for value in ingredients)}</div>"
+        f"<div class='arrow'>&rarr;</div>"
+        f"<div class='result-stack'>{render_slot(friendly_stack_label(output, items), rel_root, items, str(output.get('item', '')))}</div>"
+        f"<div class='recipe-meta'>Shapeless recipe.</div>"
+    )
+    return workstation_shell("Crafting Table", "crafting-table", inner, recipe.recipe_id, recipe.recipe_type)
 
 
 def render_generic_recipe(recipe: Recipe) -> str:
@@ -1186,6 +1355,7 @@ def build_item_pages(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> 
         item_dir = item_root / slugify(namespace)
         item_dir.mkdir(parents=True, exist_ok=True)
         recipes_html = "".join(render_recipe(recipe, "../..", items) for recipe in item.recipes)
+        usages_html = "".join(render_recipe(recipe, "../..", items) for recipe in item.usages)
         icon = item_icon_html(item.item_id, "../..", items, large=True)
         body = f"""
         <div class="breadcrumbs"><a href="../../index.html">Home</a> / <a href="../index.html">Items</a> / {safe_text(item.item_id)}</div>
@@ -1204,6 +1374,10 @@ def build_item_pages(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> 
         <div class="panel">
           <h2>Recipes</h2>
           {recipes_html or "<p class='muted'>No recipe output was found in the scanned data for this entry.</p>"}
+        </div>
+        <div class="panel">
+          <h2>Used In</h2>
+          {usages_html or "<p class='muted'>No direct recipe usages were found for this entry.</p>"}
         </div>
         """
         (item_dir / f"{slugify(path)}.html").write_text(page(f"{item.display_name} - JombiePack", body, rel_root="../.."), encoding="utf-8")

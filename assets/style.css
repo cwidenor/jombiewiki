@@ -223,6 +223,41 @@ a:hover {
   border-radius: 12px;
 }
 
+.recipe-card.workstation {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.28), rgba(0,0,0,0.05)),
+    linear-gradient(180deg, #c9c0b1, #b0a691);
+  border-color: #7e7259;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    inset 0 -2px 0 rgba(67, 54, 35, 0.18);
+}
+
+.workstation-badge {
+  display: inline-block;
+  margin-bottom: 10px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(57, 46, 31, 0.12);
+  color: #4a3821;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.workstation-frame {
+  padding: 16px;
+  border: 3px solid #8a7e66;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.18), rgba(0,0,0,0.03)),
+    #cfc6b6;
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,0.25),
+    inset 0 -2px 0 rgba(68, 57, 39, 0.15);
+}
+
 .recipe-header {
   margin-bottom: 10px;
   display: flex;
@@ -238,6 +273,19 @@ a:hover {
   align-items: center;
 }
 
+.crafting-layout.crafting-table {
+  grid-template-columns: auto 70px auto;
+}
+
+.crafting-layout.furnace-ui,
+.crafting-layout.stonecutter-ui {
+  grid-template-columns: auto 80px auto;
+}
+
+.crafting-layout.create-ui {
+  grid-template-columns: auto 90px auto;
+}
+
 .craft-grid {
   display: grid;
   grid-template-columns: repeat(3, 78px);
@@ -245,11 +293,15 @@ a:hover {
 }
 
 .slot {
+  position: relative;
   min-height: 78px;
   padding: 6px;
-  background: linear-gradient(180deg, var(--slot-inner), var(--slot));
-  border: 2px solid var(--slot-edge);
-  border-radius: 8px;
+  background: linear-gradient(180deg, #c8baa0, #afa083);
+  border: 2px solid #6f634d;
+  border-radius: 6px;
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,0.18),
+    inset 0 -2px 0 rgba(0,0,0,0.08);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -258,7 +310,19 @@ a:hover {
   line-height: 1.2;
 }
 
+.slot::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 3px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.05));
+  pointer-events: none;
+}
+
 .slot-content {
+  position: relative;
+  z-index: 1;
   display: grid;
   gap: 4px;
   justify-items: center;
@@ -272,16 +336,105 @@ a:hover {
 }
 
 .slot.empty {
-  color: #9d8d73;
+  color: #8c7b62;
+  background: linear-gradient(180deg, #b4a588, #9d8d73);
 }
 
 .arrow {
-  font-size: 2rem;
+  font-size: 0;
   text-align: center;
+  color: var(--accent-2);
+  position: relative;
+  width: 70px;
+  height: 24px;
+}
+
+.arrow::before {
+  content: "";
+  position: absolute;
+  inset: 7px 12px 7px 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #835625, #e0b85d);
+}
+
+.arrow::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+  background: linear-gradient(135deg, #f4d784, #b3732f);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+.furnace-center,
+.stonecutter-center,
+.create-center {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
   color: var(--accent-2);
 }
 
+.furnace-fire {
+  width: 24px;
+  height: 32px;
+  position: relative;
+}
+
+.furnace-fire::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 70%, #ffd36a 0 30%, transparent 31%),
+    radial-gradient(circle at 35% 45%, #ff8f3c 0 36%, transparent 37%),
+    radial-gradient(circle at 65% 32%, #ffb14e 0 28%, transparent 29%);
+  clip-path: polygon(50% 0%, 78% 22%, 92% 52%, 74% 100%, 26% 100%, 8% 52%, 22% 22%);
+}
+
+.progress-bar {
+  width: 64px;
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid #8f7d62;
+  background: linear-gradient(180deg, #f2e7c6, #d2bc82);
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-bar::after {
+  content: "";
+  position: absolute;
+  inset: 2px auto 2px 2px;
+  width: 70%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #a56d2a, #e5b251);
+}
+
+.stonecutter-wheel {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid #7f8b95;
+  background:
+    radial-gradient(circle, transparent 0 4px, #c8d0d7 5px 7px, transparent 8px),
+    linear-gradient(90deg, transparent 46%, #d7dee4 46% 54%, transparent 54%),
+    linear-gradient(0deg, transparent 46%, #d7dee4 46% 54%, transparent 54%),
+    linear-gradient(45deg, transparent 47%, #d7dee4 47% 53%, transparent 53%),
+    linear-gradient(-45deg, transparent 47%, #d7dee4 47% 53%, transparent 53%),
+    linear-gradient(180deg, #a8b4bd, #79848c);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.3);
+}
+
 .result-stack {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+}
+
+.stack-list {
   display: grid;
   gap: 6px;
   justify-items: center;
