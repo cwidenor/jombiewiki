@@ -81,6 +81,113 @@ def safe_text(value: Any) -> str:
     return html.escape("" if value is None else str(value))
 
 
+def fallback_display_name(item_id: str) -> str:
+    _, _, path = item_id.partition(":")
+    base = path.split("/")[-1]
+    return base.replace("_", " ").replace("-", " ").title()
+
+
+def normalize_display_name(item_id: str, raw_value: str) -> str:
+    value = (raw_value or "").strip()
+    if not value:
+        return fallback_display_name(item_id)
+    if "%s" in value or "%1$s" in value or "%2$s" in value:
+        return fallback_display_name(item_id)
+    return value
+
+
+def friendly_tag_name(tag: str) -> str:
+    cleaned = tag.lstrip("#")
+    namespace, _, path = cleaned.partition(":")
+    namespace = namespace or ""
+    path_parts = [part for part in path.split("/") if part]
+    if not path_parts:
+        return tag
+
+    def titleize(value: str) -> str:
+        return " ".join(part.capitalize() for part in value.replace("_", " ").replace("-", " ").split())
+
+    if len(path_parts) >= 2:
+        category = path_parts[0]
+        material = titleize(" ".join(path_parts[1:]))
+        singular_map = {
+            "ingots": "Ingot",
+            "nuggets": "Nugget",
+            "dusts": "Dust",
+            "gems": "Gem",
+            "plates": "Plate",
+            "rods": "Rod",
+            "gears": "Gear",
+            "storage_blocks": "Storage Block",
+            "ores": "Ore",
+            "raw_materials": "Raw Material",
+        }
+        if category in singular_map:
+            return f"Any {material} {singular_map[category]}".strip()
+
+    simple_map = {
+        "strings": "Any String",
+        "ropes": "Any Rope",
+        "trim_materials": "Any Trim Material",
+        "trimmable_armor": "Any Trimmable Armor Piece",
+        "planks": "Any Planks",
+        "logs": "Any Log",
+        "wools": "Any Wool",
+        "stone": "Any Stone",
+    }
+    joined = "_".join(path_parts)
+    if joined in simple_map:
+        return simple_map[joined]
+
+    titled = titleize(" ".join(path_parts))
+    if namespace in {"c", "forge"}:
+        return f"Any {titled}".strip()
+    return f"Tag: {titleize(namespace)} {titled}".strip()
+
+
+def friendly_stack_label(stack: dict[str, Any], items: dict[str, ItemEntry]) -> str:
+    item_id = str(stack.get("item", ""))
+    count = int(stack.get("count", 1))
+    base = item_id
+    if item_id.startswith("#"):
+        base = friendly_tag_name(item_id)
+    elif item_id in items:
+        base = items[item_id].display_name
+    elif ":" in item_id:
+        base = fallback_display_name(item_id)
+    label = f"{base} ×{count}" if count > 1 else base
+    if "chance" in stack:
+        try:
+            label += f" ({float(stack['chance'])*100:.0f}%)"
+        except Exception:
+            pass
+    return label
+
+
+def friendly_ingredient_label(value: str, items: dict[str, ItemEntry]) -> str:
+    if not value:
+        return value
+    if value.startswith("#"):
+        return friendly_tag_name(value)
+    if value in items:
+        return items[value].display_name
+    if ":" in value:
+        return fallback_display_name(value)
+    return value
+
+
+def is_internal_item_name(path: str) -> bool:
+    lowered = path.lower()
+    return (
+        lowered.startswith("example")
+        or lowered.startswith("test_")
+        or lowered.startswith("debug_")
+        or lowered.startswith("dev_")
+        or "/example" in lowered
+        or "_example" in lowered
+    )
+
+
 def page(title: str, body: str, *, rel_root: str = ".", extra_head: str = "") -> str:
     return f"""<!doctype html>
 <html lang="en">
@@ -138,7 +245,11 @@ def download_file(url: str, target: Path) -> bool:
 
 
 def strip_markdown(text: str, *, limit: int = 420) -> str:
-    cleaned = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", text or "")
+    cleaned = html.unescape(text or "")
+    cleaned = re.sub(r"<br\s*/?>", "\n", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"</p\s*>", "\n\n", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"<[^>]+>", " ", cleaned)
+    cleaned = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", cleaned)
     cleaned = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", cleaned)
     cleaned = re.sub(r"`([^`]+)`", r"\1", cleaned)
     cleaned = re.sub(r"[*_>#-]", " ", cleaned)
@@ -287,6 +398,7 @@ def parse_mod_metadata(zf: zipfile.ZipFile, jar_name: str) -> list[ModEntry]:
 
 def parse_item_language_entries(zf: zipfile.ZipFile, source_mods: list[ModEntry], jar_name: str) -> list[ItemEntry]:
     known_mod_ids = {mod.mod_id for mod in source_mods}
+    primary_mod_id = source_mods[0].mod_id if source_mods else ""
     entries: dict[str, ItemEntry] = {}
     for name in zf.namelist():
         if not name.startswith("assets/") or not name.endswith("/lang/en_us.json"):
@@ -295,17 +407,21 @@ def parse_item_language_entries(zf: zipfile.ZipFile, source_mods: list[ModEntry]
         if not isinstance(lang_data, dict):
             continue
         for key, value in lang_data.items():
-            match = re.match(r"^(item|block)\.([a-z0-9_.-]+)\.(.+)$", key)
+            match = re.match(r"^(item|block)\.([a-z0-9_-]+)\.(.+)$", key)
             if not match:
                 continue
             entry_type, namespace, raw_name = match.groups()
-            if not re.fullmatch(r"[a-z0-9_./-]+", raw_name):
+            if not re.fullmatch(r"[a-z0-9_/-]+", raw_name):
+                continue
+            if namespace not in known_mod_ids and namespace != primary_mod_id and namespace != "minecraft":
+                continue
+            if is_internal_item_name(raw_name):
                 continue
             item_id = f"{namespace}:{raw_name}"
             owner_mod_id = namespace if namespace in known_mod_ids else (source_mods[0].mod_id if len(source_mods) == 1 else namespace)
             entries[item_id] = ItemEntry(
                 item_id=item_id,
-                display_name=str(value),
+                display_name=normalize_display_name(item_id, str(value)),
                 entry_type=entry_type,
                 namespace=namespace,
                 owner_mod_id=owner_mod_id,
@@ -329,18 +445,28 @@ def normalize_item_stack(raw: Any) -> dict[str, Any] | None:
         if "item" in raw:
             item_value = raw["item"]
             if isinstance(item_value, str):
-                return {"item": item_value, "count": int(raw.get("count", 1))}
+                stack = {"item": item_value, "count": int(raw.get("count", 1))}
+                if "chance" in raw:
+                    stack["chance"] = raw["chance"]
+                return stack
             nested = normalize_item_stack(item_value)
             if nested:
                 nested["count"] = int(raw.get("count", nested.get("count", 1)))
+                if "chance" in raw:
+                    nested["chance"] = raw["chance"]
                 return nested
         if "id" in raw:
             id_value = raw["id"]
             if isinstance(id_value, str):
-                return {"item": id_value, "count": int(raw.get("count", 1))}
+                stack = {"item": id_value, "count": int(raw.get("count", 1))}
+                if "chance" in raw:
+                    stack["chance"] = raw["chance"]
+                return stack
             nested = normalize_item_stack(id_value)
             if nested:
                 nested["count"] = int(raw.get("count", nested.get("count", 1)))
+                if "chance" in raw:
+                    nested["chance"] = raw["chance"]
                 return nested
         if "result" in raw:
             return normalize_item_stack(raw["result"])
@@ -367,6 +493,16 @@ def normalize_ingredient(raw: Any) -> str:
         if "ingredient" in raw:
             return normalize_ingredient(raw["ingredient"])
     return str(raw)
+
+
+def ingredient_list_from_recipe(recipe: Recipe) -> list[str]:
+    values: list[str] = []
+    if recipe.ingredients:
+        values.extend(normalize_ingredient(value) for value in recipe.ingredients)
+    for key in ("ingredient", "base", "addition", "template"):
+        if key in recipe.extra:
+            values.append(normalize_ingredient(recipe.extra[key]))
+    return [value for value in values if value]
 
 
 def parse_recipe_data(mod_id: str, recipe_id: str, data: dict[str, Any]) -> Recipe:
@@ -399,7 +535,19 @@ def parse_recipe_data(mod_id: str, recipe_id: str, data: dict[str, Any]) -> Reci
     elif "ingredient" in data:
         recipe.ingredients = [data["ingredient"]]
 
-    for key in ("category", "experience", "cookingtime", "processingTime", "heatRequirement", "keep_held_item"):
+    for key in (
+        "category",
+        "experience",
+        "cookingtime",
+        "processingTime",
+        "processing_time",
+        "heatRequirement",
+        "keep_held_item",
+        "base",
+        "addition",
+        "template",
+        "neoforge:conditions",
+    ):
         if key in data:
             recipe.extra[key] = data[key]
 
@@ -482,6 +630,13 @@ def load_catalog() -> tuple[list[Path], dict[str, ModEntry], dict[str, ItemEntry
                             source_jar=jar_path.name,
                         )
                     items[item_id].recipes.append(recipe)
+
+    items = {
+        item_id: item
+        for item_id, item in items.items()
+        if (item.namespace in mods or item.namespace == "minecraft")
+        and not (is_internal_item_name(item.item_id.partition(":")[2]) and len(item.recipes) == 0)
+    }
 
     for item in items.values():
         mods.setdefault(
@@ -671,12 +826,14 @@ def mod_icon_html(mod: ModEntry, rel_root: str, *, large: bool = False) -> str:
     return f'<img class="icon{size_class}" src="{rel_root}/{safe_text(mod.modrinth_icon_path)}" alt="{safe_text(mod.name)}">'
 
 
-def render_slot(label: str, rel_root: str, items: dict[str, ItemEntry]) -> str:
+def render_slot(label: str, rel_root: str, items: dict[str, ItemEntry], icon_item_id: str = "") -> str:
     if not label:
         return '<div class="slot empty">Empty</div>'
     icon = ""
-    if re.match(r"^[a-z0-9_.-]+:[a-z0-9_./-]+(?: ×\d+)?$", label):
+    item_id = icon_item_id
+    if not item_id and re.match(r"^[a-z0-9_.-]+:[a-z0-9_./-]+(?: ×\d+)?$", label):
         item_id = label.split(" ×", 1)[0]
+    if item_id and not item_id.startswith("#"):
         icon = item_icon_html(item_id, rel_root, items)
     return f'<div class="slot"><div class="slot-content">{icon}<div>{safe_text(label)}</div></div></div>'
 
@@ -684,7 +841,71 @@ def render_slot(label: str, rel_root: str, items: dict[str, ItemEntry]) -> str:
 def render_stack_label(stack: dict[str, Any]) -> str:
     item_id = stack.get("item", "")
     count = int(stack.get("count", 1))
-    return f"{item_id} ×{count}" if count > 1 else str(item_id)
+    label = f"{item_id} ×{count}" if count > 1 else str(item_id)
+    if "chance" in stack:
+        try:
+            label += f" ({float(stack['chance'])*100:.0f}%)"
+        except Exception:
+            pass
+    return label
+
+
+def render_stack_list(stacks: list[dict[str, Any]], rel_root: str, items: dict[str, ItemEntry]) -> str:
+    if not stacks:
+        return "<div class='muted'>None</div>"
+    return "<div class='stack-list'>" + "".join(
+        render_slot(friendly_stack_label(stack, items), rel_root, items, str(stack.get("item", ""))) for stack in stacks
+    ) + "</div>"
+
+
+def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEntry], title: str) -> str:
+    ingredient_stacks = []
+    for value in ingredient_list_from_recipe(recipe):
+        ingredient_stacks.append({"item": value, "count": 1})
+    meta_parts = []
+    for key in ("processing_time", "processingTime", "cookingtime", "experience", "heatRequirement"):
+        if key in recipe.extra:
+            meta_parts.append(f"{key}: {recipe.extra[key]}")
+    return f"""
+    <div class="recipe-card">
+      <div class="recipe-header">
+        <strong>{safe_text(title)}</strong>
+        <span class="muted path">{safe_text(recipe.recipe_id)}</span>
+      </div>
+      <div class="process-grid">
+        <div class="process-col">
+          <h4>Inputs</h4>
+          {render_stack_list(ingredient_stacks, rel_root, items)}
+        </div>
+        <div class="process-col">
+          <h4>Outputs</h4>
+          {render_stack_list(recipe.outputs, rel_root, items)}
+        </div>
+      </div>
+      <div class="recipe-meta">{safe_text(', '.join(meta_parts))}</div>
+    </div>
+    """
+
+
+def render_smithing_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEntry], title: str) -> str:
+    cols = []
+    for label, key in (("Template", "template"), ("Base", "base"), ("Addition", "addition")):
+        value = recipe.extra.get(key)
+        cols.append(
+            f"<div class='process-col'><h4>{label}</h4>{render_stack_list([{'item': normalize_ingredient(value), 'count': 1}] if value else [], rel_root, items)}</div>"
+        )
+    cols.append(f"<div class='process-col'><h4>Result</h4>{render_stack_list(recipe.outputs, rel_root, items)}</div>")
+    return f"""
+    <div class="recipe-card">
+      <div class="recipe-header">
+        <strong>{safe_text(title)}</strong>
+        <span class="muted path">{safe_text(recipe.recipe_id)}</span>
+      </div>
+      <div class="process-grid">
+        {''.join(cols)}
+      </div>
+    </div>
+    """
 
 
 def render_crafting_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEntry]) -> str:
@@ -705,9 +926,9 @@ def render_crafting_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
         <span class="muted path">{safe_text(recipe.recipe_id)}</span>
       </div>
       <div class="crafting-layout">
-        <div class="craft-grid">{''.join(render_slot(value, rel_root, items) for value in rows)}</div>
+        <div class="craft-grid">{''.join(render_slot(friendly_ingredient_label(value, items), rel_root, items, value if value.startswith('#') or ':' in value else '') for value in rows)}</div>
         <div class="arrow">&rarr;</div>
-        <div class="result-stack">{render_slot(render_stack_label(output), rel_root, items)}</div>
+        <div class="result-stack">{render_slot(friendly_stack_label(output, items), rel_root, items, str(output.get('item', '')))}</div>
       </div>
     </div>
     """
@@ -725,9 +946,9 @@ def render_shapeless_recipe(recipe: Recipe, rel_root: str, items: dict[str, Item
         <span class="muted path">{safe_text(recipe.recipe_id)}</span>
       </div>
       <div class="crafting-layout">
-        <div class="craft-grid">{''.join(render_slot(value, rel_root, items) for value in ingredients)}</div>
+        <div class="craft-grid">{''.join(render_slot(friendly_ingredient_label(value, items), rel_root, items, value if value.startswith('#') or ':' in value else '') for value in ingredients)}</div>
         <div class="arrow">&rarr;</div>
-        <div class="result-stack">{render_slot(render_stack_label(output), rel_root, items)}</div>
+        <div class="result-stack">{render_slot(friendly_stack_label(output, items), rel_root, items, str(output.get('item', '')))}</div>
       </div>
       <div class="recipe-meta">Shapeless recipe.</div>
     </div>
@@ -753,6 +974,14 @@ def render_generic_recipe(recipe: Recipe) -> str:
 
 
 def render_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEntry]) -> str:
+    if recipe.recipe_type in {"minecraft:smelting", "minecraft:blasting", "minecraft:smoking", "minecraft:campfire_cooking"}:
+        return render_process_recipe(recipe, rel_root, items, recipe.recipe_type.split(":")[1].replace("_", " ").title())
+    if recipe.recipe_type == "minecraft:stonecutting":
+        return render_process_recipe(recipe, rel_root, items, "Stonecutting")
+    if recipe.recipe_type in {"minecraft:smithing_transform", "minecraft:smithing_trim"}:
+        return render_smithing_recipe(recipe, rel_root, items, recipe.recipe_type.split(":")[1].replace("_", " ").title())
+    if recipe.recipe_type.startswith("create:"):
+        return render_process_recipe(recipe, rel_root, items, recipe.recipe_type.split(":", 1)[1].replace("_", " ").title())
     if recipe.pattern:
         return render_crafting_recipe(recipe, rel_root, items)
     if "crafting_shapeless" in recipe.recipe_type:

@@ -300,6 +300,30 @@ a:hover {
   margin-top: 10px;
 }
 
+.process-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.process-col {
+  padding: 12px;
+  background: #f7f0e2;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.process-col h4 {
+  margin: 0 0 8px;
+  color: var(--accent-2);
+}
+
+.stack-list {
+  display: grid;
+  gap: 8px;
+}
+
 .footer {
   padding: 20px 0 40px;
   color: var(--muted);
