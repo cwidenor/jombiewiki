@@ -205,13 +205,59 @@ def page(title: str, body: str, *, rel_root: str = ".", extra_head: str = "") ->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{safe_text(title)}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {{
+      theme: {{
+        extend: {{
+          colors: {{
+            slatebrand: {{
+              50: '#f8fafc',
+              100: '#f1f5f9',
+              200: '#e2e8f0',
+              300: '#cbd5e1',
+              400: '#94a3b8',
+              500: '#64748b',
+              600: '#475569',
+              700: '#334155',
+              800: '#1e293b',
+              900: '#0f172a'
+            }},
+            ember: '#f97316',
+            moss: '#16a34a'
+          }},
+          boxShadow: {{
+            panel: '0 24px 70px rgba(15, 23, 42, 0.16)'
+          }}
+        }}
+      }}
+    }}
+  </script>
   <link rel="stylesheet" href="{rel_root}/assets/style.css">
   {extra_head}
 </head>
-<body>
-  <div class="page">
-    {body}
-    <div class="footer">Generated from JombiePack 1.21.1 1.0.0 pack data.</div>
+<body class="min-h-screen bg-slatebrand-950 text-slate-100">
+  <div class="site-shell">
+    <header class="site-header">
+      <div class="page header-inner">
+        <a class="brand" href="{rel_root}/index.html">
+          <span class="brand-mark">J</span>
+          <span>
+            <strong>JombiePack Wiki</strong>
+            <span class="brand-sub">Catalog, recipes, and mod docs</span>
+          </span>
+        </a>
+        <nav class="header-nav">
+          <a href="{rel_root}/index.html">Home</a>
+          <a href="{rel_root}/mods/index.html">Mods</a>
+          <a href="{rel_root}/items/index.html">Items</a>
+        </nav>
+      </div>
+    </header>
+    <main class="page page-main">
+      {body}
+    </main>
+    <footer class="page footer">Generated from JombiePack 1.21.1 1.0.0 pack data.</footer>
   </div>
 </body>
 </html>
