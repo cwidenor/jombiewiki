@@ -1457,6 +1457,10 @@ def compose_recipe_image(
     for stack, pos in zip(outputs, output_positions.get(layout, [])):
         paste_stack(stack, pos)
 
+    if layout == "crafting":
+        # Show only the crafting interface region: 3x3 grid, arrow, and result.
+        base = base.crop((26, 15, 150, 73))
+
     target_name = f"{slugify(recipe.recipe_id)}-{layout}.png"
     target = recipe_asset_path(target_name)
     target.parent.mkdir(parents=True, exist_ok=True)
