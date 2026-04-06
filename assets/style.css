@@ -324,12 +324,12 @@ a:hover {
 }
 
 .crafting-layout.crafting-table {
-  max-width: 370px;
+  max-width: 420px;
 }
 
 .crafting-layout.furnace-ui,
 .crafting-layout.stonecutter-ui {
-  max-width: 360px;
+  max-width: 420px;
 }
 
 .crafting-layout.create-ui {
@@ -337,8 +337,119 @@ a:hover {
 }
 
 .crafting-layout.smithing-ui {
-  max-width: 450px;
+  max-width: 420px;
 }
+
+.mc-gui {
+  --gui-scale: 2;
+  position: relative;
+  image-rendering: pixelated;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+.mc-crafting {
+  width: calc(176px * var(--gui-scale));
+  height: calc(166px * var(--gui-scale));
+  background-image: url("minecraft/textures/gui/container/crafting_table.png");
+}
+
+.mc-furnace {
+  width: calc(176px * var(--gui-scale));
+  height: calc(166px * var(--gui-scale));
+  background-image: url("minecraft/textures/gui/container/furnace.png");
+}
+
+.mc-furnace.mc-blast {
+  background-image: url("minecraft/textures/gui/container/blast_furnace.png");
+}
+
+.mc-stonecutter {
+  width: calc(176px * var(--gui-scale));
+  height: calc(166px * var(--gui-scale));
+  background-image: url("minecraft/textures/gui/container/stonecutter.png");
+}
+
+.mc-smithing {
+  width: calc(176px * var(--gui-scale));
+  height: calc(166px * var(--gui-scale));
+  background-image: url("minecraft/textures/gui/container/smithing.png");
+}
+
+.gui-slot {
+  position: absolute;
+  width: calc(18px * var(--gui-scale));
+  height: calc(18px * var(--gui-scale));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  text-decoration: none;
+}
+
+.gui-slot.empty {
+  background: transparent;
+}
+
+.gui-slot .icon {
+  width: calc(16px * var(--gui-scale));
+  height: calc(16px * var(--gui-scale));
+}
+
+.gui-fallback {
+  display: block;
+  max-width: 90%;
+  font-size: 0.5rem;
+  line-height: 1.05;
+  text-align: center;
+  color: #222;
+}
+
+.gui-count,
+.gui-chance {
+  position: absolute;
+  right: 1px;
+  bottom: 0;
+  font-size: 0.62rem;
+  line-height: 1;
+  color: #fff;
+  text-shadow:
+    -1px 0 #000,
+    0 1px #000,
+    1px 0 #000,
+    0 -1px #000;
+}
+
+.gui-chance {
+  left: 1px;
+  right: auto;
+  top: 0;
+  bottom: auto;
+  font-size: 0.56rem;
+}
+
+.craft-slot-0 { left: calc(30px * var(--gui-scale)); top: calc(17px * var(--gui-scale)); }
+.craft-slot-1 { left: calc(48px * var(--gui-scale)); top: calc(17px * var(--gui-scale)); }
+.craft-slot-2 { left: calc(66px * var(--gui-scale)); top: calc(17px * var(--gui-scale)); }
+.craft-slot-3 { left: calc(30px * var(--gui-scale)); top: calc(35px * var(--gui-scale)); }
+.craft-slot-4 { left: calc(48px * var(--gui-scale)); top: calc(35px * var(--gui-scale)); }
+.craft-slot-5 { left: calc(66px * var(--gui-scale)); top: calc(35px * var(--gui-scale)); }
+.craft-slot-6 { left: calc(30px * var(--gui-scale)); top: calc(53px * var(--gui-scale)); }
+.craft-slot-7 { left: calc(48px * var(--gui-scale)); top: calc(53px * var(--gui-scale)); }
+.craft-slot-8 { left: calc(66px * var(--gui-scale)); top: calc(53px * var(--gui-scale)); }
+.craft-result { left: calc(124px * var(--gui-scale)); top: calc(35px * var(--gui-scale)); }
+
+.furnace-input-slot { left: calc(56px * var(--gui-scale)); top: calc(17px * var(--gui-scale)); }
+.furnace-fuel-slot { left: calc(56px * var(--gui-scale)); top: calc(53px * var(--gui-scale)); }
+.furnace-output-slot { left: calc(116px * var(--gui-scale)); top: calc(35px * var(--gui-scale)); }
+
+.stonecut-input { left: calc(20px * var(--gui-scale)); top: calc(33px * var(--gui-scale)); }
+.stonecut-output { left: calc(143px * var(--gui-scale)); top: calc(33px * var(--gui-scale)); }
+
+.smith-template { left: calc(8px * var(--gui-scale)); top: calc(48px * var(--gui-scale)); }
+.smith-base { left: calc(26px * var(--gui-scale)); top: calc(48px * var(--gui-scale)); }
+.smith-addition { left: calc(44px * var(--gui-scale)); top: calc(48px * var(--gui-scale)); }
+.smith-output { left: calc(98px * var(--gui-scale)); top: calc(48px * var(--gui-scale)); }
 
 .ui-title-row {
   display: flex;
