@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import hashlib
+import base64
 import urllib.parse
 import urllib.request
 import zipfile
@@ -1362,6 +1363,12 @@ def render_gui_stack(
 
 
 def render_gui_canvas(rel_root: str, asset_path: str, class_name: str) -> str:
+    asset_file = SITE_DIR / asset_path.replace("/", os.sep)
+    if asset_file.exists():
+        mime = "image/png" if asset_file.suffix.lower() == ".png" else "image/webp"
+        encoded = base64.b64encode(asset_file.read_bytes()).decode("ascii")
+        data_url = f"data:{mime};base64,{encoded}"
+        return f'<div class="gui-bg {safe_text(class_name)}" style="background-image:url(\'{data_url}\')"></div>'
     return f'<div class="gui-bg {safe_text(class_name)}" style="background-image:url(\'{rel_root}/{safe_text(asset_path)}\')"></div>'
 
 
