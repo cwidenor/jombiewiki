@@ -1191,6 +1191,19 @@ def extract_gui_assets(minecraft_client_jar: Path | None) -> None:
         for asset_path in wanted:
             if asset_path in names:
                 copy_asset_from_jar(zf, asset_path, SITE_DIR)
+                if asset_path.startswith("assets/minecraft/textures/gui/container/"):
+                    try:
+                        from PIL import Image
+
+                        rel = copy_asset_from_jar(zf, asset_path, SITE_DIR)
+                        full_path = SITE_DIR / rel
+                        crop_dir = SITE_DIR / "assets" / "minecraft" / "textures" / "gui" / "cropped"
+                        crop_dir.mkdir(parents=True, exist_ok=True)
+                        with Image.open(full_path) as image:
+                            cropped = image.crop((0, 0, 176, 166))
+                            cropped.save(crop_dir / Path(asset_path).name)
+                    except Exception:
+                        pass
 
 
 def extract_item_icons(jar_paths: list[Path], items: dict[str, ItemEntry], minecraft_client_jar: Path | None = None) -> None:
@@ -1396,7 +1409,7 @@ def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEn
         station = "Stonecutter"
         inner = (
             "<div class='mc-gui mc-stonecutter'>"
-            f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/container/stonecutter.png', 'gui-bg-stonecutter')}"
+            f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/cropped/stonecutter.png', 'gui-bg-stonecutter')}"
             f"{render_gui_stack(main_input, rel_root, items, extra_class='stonecut-input')}"
             f"{render_gui_stack(main_output, rel_root, items, extra_class='stonecut-output')}"
             "</div>"
@@ -1419,7 +1432,7 @@ def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEn
 
     inner = (
         f"<div class='mc-gui mc-furnace {safe_text('mc-blast' if recipe.recipe_type == 'minecraft:blasting' else '')}'>"
-        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/container/blast_furnace.png' if recipe.recipe_type == 'minecraft:blasting' else 'assets/minecraft/textures/gui/container/furnace.png', 'gui-bg-furnace')}"
+        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/cropped/blast_furnace.png' if recipe.recipe_type == 'minecraft:blasting' else 'assets/minecraft/textures/gui/cropped/furnace.png', 'gui-bg-furnace')}"
         f"{render_gui_stack(main_input, rel_root, items, extra_class='furnace-input-slot')}"
         "<div class='gui-slot empty furnace-fuel-slot'></div>"
         f"{render_gui_stack(main_output, rel_root, items, extra_class='furnace-output-slot')}"
@@ -1437,7 +1450,7 @@ def render_smithing_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
     output = recipe.outputs[0] if recipe.outputs else None
     inner = (
         "<div class='mc-gui mc-smithing'>"
-        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/container/smithing.png', 'gui-bg-smithing')}"
+        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/cropped/smithing.png', 'gui-bg-smithing')}"
         f"{render_gui_stack({'item': normalize_ingredient(template), 'count': 1} if template else None, rel_root, items, extra_class='smith-template')}"
         f"{render_gui_stack({'item': normalize_ingredient(base), 'count': 1} if base else None, rel_root, items, extra_class='smith-base')}"
         f"{render_gui_stack({'item': normalize_ingredient(addition), 'count': 1} if addition else None, rel_root, items, extra_class='smith-addition')}"
@@ -1464,7 +1477,7 @@ def render_crafting_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
         slots.append(render_gui_slot(item_id, friendly_ingredient_label(value, items), rel_root, items, extra_class=f"craft-slot craft-slot-{idx}") if value else f"<div class='gui-slot empty craft-slot craft-slot-{idx}'></div>")
     inner = (
         "<div class='mc-gui mc-crafting'>"
-        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/container/crafting_table.png', 'gui-bg-crafting')}"
+        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/cropped/crafting_table.png', 'gui-bg-crafting')}"
         f"{''.join(slots)}"
         f"{render_gui_stack(output, rel_root, items, extra_class='craft-result')}"
         "</div>"
@@ -1483,7 +1496,7 @@ def render_shapeless_recipe(recipe: Recipe, rel_root: str, items: dict[str, Item
         slots.append(render_gui_slot(item_id, friendly_ingredient_label(value, items), rel_root, items, extra_class=f"craft-slot craft-slot-{idx}") if value else f"<div class='gui-slot empty craft-slot craft-slot-{idx}'></div>")
     inner = (
         "<div class='mc-gui mc-crafting'>"
-        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/container/crafting_table.png', 'gui-bg-crafting')}"
+        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/cropped/crafting_table.png', 'gui-bg-crafting')}"
         f"{''.join(slots)}"
         f"{render_gui_stack(output, rel_root, items, extra_class='craft-result')}"
         "</div>"
