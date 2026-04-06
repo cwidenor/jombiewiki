@@ -774,6 +774,26 @@ def heuristic_tag_items(tag_id: str, items: dict[str, ItemEntry]) -> set[str]:
     return matches
 
 
+def ensure_referenced_items_exist(items: dict[str, ItemEntry], recipes: list[Recipe], known_mod_ids: set[str]) -> None:
+    for recipe in recipes:
+        referenced_ids = ingredient_item_ids_from_recipe(recipe) + [
+            str(output.get("item", "")) for output in recipe.outputs if isinstance(output.get("item", ""), str)
+        ]
+        for item_id in referenced_ids:
+            if not item_id or item_id.startswith("#") or item_id in items or ":" not in item_id:
+                continue
+            namespace, _, path = item_id.partition(":")
+            owner_mod_id = namespace if namespace in known_mod_ids else namespace
+            items[item_id] = ItemEntry(
+                item_id=item_id,
+                display_name=fallback_display_name(item_id),
+                entry_type="item",
+                namespace=namespace,
+                owner_mod_id=owner_mod_id,
+                source_jar=f"{recipe.mod_id}.jar",
+            )
+
+
 def load_catalog() -> tuple[list[Path], Path | None, dict[str, ModEntry], dict[str, ItemEntry]]:
     index_data = load_pack_index()
     minecraft_version = pack_minecraft_version(index_data)
@@ -842,6 +862,8 @@ def load_catalog() -> tuple[list[Path], Path | None, dict[str, ModEntry], dict[s
                             source_jar=jar_path.name,
                         )
                     items[item_id].recipes.append(recipe)
+
+    ensure_referenced_items_exist(items, all_recipes, set(mods))
 
     items = {
         item_id: item

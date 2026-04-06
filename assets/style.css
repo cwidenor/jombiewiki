@@ -262,33 +262,25 @@ a:hover {
 .workstation-frame.frame-crafting-table {
   background:
     linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.06)),
-    url("minecraft/textures/gui/container/crafting_table.png") no-repeat top left,
     linear-gradient(180deg, #c6c6c6, #b8b8b8);
-  background-size: auto, 256px 256px, auto;
 }
 
 .workstation-frame.frame-furnace-ui {
   background:
     linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.06)),
-    url("minecraft/textures/gui/container/furnace.png") no-repeat top left,
     linear-gradient(180deg, #c6c6c6, #b8b8b8);
-  background-size: auto, 256px 256px, auto;
 }
 
 .workstation-frame.frame-stonecutter-ui {
   background:
     linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.06)),
-    url("minecraft/textures/gui/container/stonecutter.png") no-repeat top left,
     linear-gradient(180deg, #c6c6c6, #b8b8b8);
-  background-size: auto, 256px 256px, auto;
 }
 
 .workstation-frame.frame-smithing-ui {
   background:
     linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.06)),
-    url("minecraft/textures/gui/container/smithing.png") no-repeat top left,
     linear-gradient(180deg, #c6c6c6, #b8b8b8);
-  background-size: auto, 256px 256px, auto;
 }
 
 .workstation-frame.frame-create-ui {
