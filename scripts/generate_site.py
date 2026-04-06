@@ -1372,6 +1372,98 @@ def render_gui_canvas(rel_root: str, asset_path: str, class_name: str) -> str:
     return f'<img class="gui-bg {safe_text(class_name)}" src="{rel_root}/{safe_text(asset_path)}" alt="">'
 
 
+def recipe_asset_rel(name: str) -> str:
+    return f"assets/recipes/{name}"
+
+
+def recipe_asset_path(name: str) -> Path:
+    return SITE_DIR / "assets" / "recipes" / name
+
+
+def load_slot_icon(item_id: str, items: dict[str, ItemEntry]) -> Any | None:
+    try:
+        from PIL import Image
+    except Exception:
+        return None
+    item = items.get(item_id)
+    if not item or not item.icon_path:
+        return None
+    path = SITE_DIR / item.icon_path.replace("/", os.sep)
+    if not path.exists():
+        return None
+    try:
+        return Image.open(path).convert("RGBA")
+    except Exception:
+        return None
+
+
+def compose_recipe_image(
+    recipe: Recipe,
+    items: dict[str, ItemEntry],
+    *,
+    layout: str,
+    ingredients: list[dict[str, Any]],
+    outputs: list[dict[str, Any]],
+) -> str:
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:
+        return ""
+
+    backgrounds = {
+        "crafting": SITE_DIR / "assets" / "minecraft" / "textures" / "gui" / "cropped" / "crafting_table.png",
+        "furnace": SITE_DIR / "assets" / "minecraft" / "textures" / "gui" / "cropped" / "furnace.png",
+        "blast": SITE_DIR / "assets" / "minecraft" / "textures" / "gui" / "cropped" / "blast_furnace.png",
+        "stonecutter": SITE_DIR / "assets" / "minecraft" / "textures" / "gui" / "cropped" / "stonecutter.png",
+        "smithing": SITE_DIR / "assets" / "minecraft" / "textures" / "gui" / "cropped" / "smithing.png",
+    }
+    base_path = backgrounds.get(layout)
+    if not base_path or not base_path.exists():
+        return ""
+
+    base = Image.open(base_path).convert("RGBA")
+    draw = ImageDraw.Draw(base)
+    slot_positions = {
+        "crafting": [(30, 17), (48, 17), (66, 17), (30, 35), (48, 35), (66, 35), (30, 53), (48, 53), (66, 53)],
+        "furnace": [(56, 17)],
+        "blast": [(56, 17)],
+        "stonecutter": [(20, 33)],
+        "smithing": [(8, 48), (26, 48), (44, 48)],
+    }
+    output_positions = {
+        "crafting": [(124, 35)],
+        "furnace": [(116, 35)],
+        "blast": [(116, 35)],
+        "stonecutter": [(143, 33)],
+        "smithing": [(98, 48)],
+    }
+
+    def paste_stack(stack: dict[str, Any] | None, xy: tuple[int, int]) -> None:
+        if not stack:
+            return
+        item_id = str(stack.get("item", ""))
+        icon = load_slot_icon(item_id, items) if item_id and not item_id.startswith("#") else None
+        x, y = xy
+        if icon:
+            icon = icon.resize((16, 16))
+            base.alpha_composite(icon, (x + 1, y + 1))
+        else:
+            label = friendly_stack_label(stack, items)
+            short = label[:6]
+            draw.text((x + 1, y + 5), short, fill=(255, 255, 255, 255))
+
+    for stack, pos in zip(ingredients, slot_positions.get(layout, [])):
+        paste_stack(stack, pos)
+    for stack, pos in zip(outputs, output_positions.get(layout, [])):
+        paste_stack(stack, pos)
+
+    target_name = f"{slugify(recipe.recipe_id)}-{layout}.png"
+    target = recipe_asset_path(target_name)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    base.save(target)
+    return recipe_asset_rel(target_name)
+
+
 def workstation_shell(station: str, layout_class: str, inner_html: str, recipe_id: str, recipe_type: str) -> str:
     frame_class = f"frame-{slugify(layout_class)}"
     return f"""
@@ -1414,13 +1506,10 @@ def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEn
     if recipe.recipe_type == "minecraft:stonecutting":
         layout_class = "stonecutter-ui"
         station = "Stonecutter"
+        image_rel = compose_recipe_image(recipe, items, layout="stonecutter", ingredients=[main_input] if main_input else [], outputs=[main_output] if main_output else [])
         inner = (
-            "<div class='mc-gui mc-stonecutter'>"
-            f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/cropped/stonecutter.png', 'gui-bg-stonecutter')}"
-            f"{render_gui_stack(main_input, rel_root, items, extra_class='stonecut-input')}"
-            f"{render_gui_stack(main_output, rel_root, items, extra_class='stonecut-output')}"
-            "</div>"
-            f"{render_recipe_meta(meta_parts)}"
+            (f"<div class='recipe-render'><img class='recipe-render-img' src='{rel_root}/{safe_text(image_rel)}' alt='Stonecutter recipe'></div>" if image_rel else "")
+            + f"{render_recipe_meta(meta_parts)}"
         )
         return workstation_shell(station, layout_class, inner, recipe.recipe_id, title)
     elif recipe.recipe_type.startswith("create:"):
@@ -1437,13 +1526,15 @@ def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEn
         )
         return workstation_shell(station, layout_class, inner, recipe.recipe_id, title)
 
+    image_rel = compose_recipe_image(
+        recipe,
+        items,
+        layout='blast' if recipe.recipe_type == 'minecraft:blasting' else 'furnace',
+        ingredients=[main_input] if main_input else [],
+        outputs=[main_output] if main_output else [],
+    )
     inner = (
-        f"<div class='mc-gui mc-furnace {safe_text('mc-blast' if recipe.recipe_type == 'minecraft:blasting' else '')}'>"
-        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/cropped/blast_furnace.png' if recipe.recipe_type == 'minecraft:blasting' else 'assets/minecraft/textures/gui/cropped/furnace.png', 'gui-bg-furnace')}"
-        f"{render_gui_stack(main_input, rel_root, items, extra_class='furnace-input-slot')}"
-        "<div class='gui-slot empty furnace-fuel-slot'></div>"
-        f"{render_gui_stack(main_output, rel_root, items, extra_class='furnace-output-slot')}"
-        "</div>"
+        (f"<div class='recipe-render'><img class='recipe-render-img' src='{rel_root}/{safe_text(image_rel)}' alt='Processing recipe'></div>" if image_rel else "")
         + (f"<div class='byproduct-row'><div class='ui-subtitle'>Extra Outputs</div>{render_stack_list(extra_outputs, rel_root, items)}</div>" if extra_outputs else "")
         + render_recipe_meta(meta_parts)
     )
@@ -1455,15 +1546,18 @@ def render_smithing_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
     base = recipe.extra.get("base")
     addition = recipe.extra.get("addition")
     output = recipe.outputs[0] if recipe.outputs else None
-    inner = (
-        "<div class='mc-gui mc-smithing'>"
-        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/cropped/smithing.png', 'gui-bg-smithing')}"
-        f"{render_gui_stack({'item': normalize_ingredient(template), 'count': 1} if template else None, rel_root, items, extra_class='smith-template')}"
-        f"{render_gui_stack({'item': normalize_ingredient(base), 'count': 1} if base else None, rel_root, items, extra_class='smith-base')}"
-        f"{render_gui_stack({'item': normalize_ingredient(addition), 'count': 1} if addition else None, rel_root, items, extra_class='smith-addition')}"
-        f"{render_gui_stack(output, rel_root, items, extra_class='smith-output')}"
-        "</div>"
+    image_rel = compose_recipe_image(
+        recipe,
+        items,
+        layout="smithing",
+        ingredients=[
+            {"item": normalize_ingredient(template), "count": 1} if template else None,
+            {"item": normalize_ingredient(base), "count": 1} if base else None,
+            {"item": normalize_ingredient(addition), "count": 1} if addition else None,
+        ],
+        outputs=[output] if output else [],
     )
+    inner = f"<div class='recipe-render'><img class='recipe-render-img' src='{rel_root}/{safe_text(image_rel)}' alt='Smithing recipe'></div>" if image_rel else ""
     return workstation_shell("Smithing Table", "smithing-ui", inner, recipe.recipe_id, title)
 
 
@@ -1482,13 +1576,14 @@ def render_crafting_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
     for idx, value in enumerate(rows):
         item_id = value if value.startswith("#") or ":" in value else ""
         slots.append(render_gui_slot(item_id, friendly_ingredient_label(value, items), rel_root, items, extra_class=f"craft-slot craft-slot-{idx}") if value else f"<div class='gui-slot empty craft-slot craft-slot-{idx}'></div>")
-    inner = (
-        "<div class='mc-gui mc-crafting'>"
-        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/cropped/crafting_table.png', 'gui-bg-crafting')}"
-        f"{''.join(slots)}"
-        f"{render_gui_stack(output, rel_root, items, extra_class='craft-result')}"
-        "</div>"
+    image_rel = compose_recipe_image(
+        recipe,
+        items,
+        layout="crafting",
+        ingredients=[{"item": value, "count": 1} if value else None for value in rows],
+        outputs=[output],
     )
+    inner = f"<div class='recipe-render'><img class='recipe-render-img' src='{rel_root}/{safe_text(image_rel)}' alt='Crafting recipe'></div>" if image_rel else ""
     return workstation_shell("Crafting Table", "crafting-table", inner, recipe.recipe_id, recipe.recipe_type)
 
 
@@ -1501,13 +1596,16 @@ def render_shapeless_recipe(recipe: Recipe, rel_root: str, items: dict[str, Item
     for idx, value in enumerate(ingredients):
         item_id = value if value.startswith("#") or ":" in value else ""
         slots.append(render_gui_slot(item_id, friendly_ingredient_label(value, items), rel_root, items, extra_class=f"craft-slot craft-slot-{idx}") if value else f"<div class='gui-slot empty craft-slot craft-slot-{idx}'></div>")
+    image_rel = compose_recipe_image(
+        recipe,
+        items,
+        layout="crafting",
+        ingredients=[{"item": value, "count": 1} if value else None for value in ingredients],
+        outputs=[output],
+    )
     inner = (
-        "<div class='mc-gui mc-crafting'>"
-        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/cropped/crafting_table.png', 'gui-bg-crafting')}"
-        f"{''.join(slots)}"
-        f"{render_gui_stack(output, rel_root, items, extra_class='craft-result')}"
-        "</div>"
-        "<div class='recipe-meta mc-meta-row'><span class='mc-meta-chip'>Shapeless</span></div>"
+        (f"<div class='recipe-render'><img class='recipe-render-img' src='{rel_root}/{safe_text(image_rel)}' alt='Crafting recipe'></div>" if image_rel else "")
+        + "<div class='recipe-meta mc-meta-row'><span class='mc-meta-chip'>Shapeless</span></div>"
     )
     return workstation_shell("Crafting Table", "crafting-table", inner, recipe.recipe_id, recipe.recipe_type)
 
