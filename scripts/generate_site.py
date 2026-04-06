@@ -1221,6 +1221,10 @@ def render_gui_stack(
     return render_gui_slot(str(stack.get("item", "")), label, rel_root, items, extra_badge=badge, extra_class=extra_class)
 
 
+def render_gui_canvas(rel_root: str, asset_path: str, class_name: str) -> str:
+    return f'<img class="gui-bg {safe_text(class_name)}" src="{rel_root}/{safe_text(asset_path)}" alt="">'
+
+
 def workstation_shell(station: str, layout_class: str, inner_html: str, recipe_id: str, recipe_type: str) -> str:
     frame_class = f"frame-{slugify(layout_class)}"
     return f"""
@@ -1265,6 +1269,7 @@ def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEn
         station = "Stonecutter"
         inner = (
             "<div class='mc-gui mc-stonecutter'>"
+            f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/container/stonecutter.png', 'gui-bg-stonecutter')}"
             f"{render_gui_stack(main_input, rel_root, items, extra_class='stonecut-input')}"
             f"{render_gui_stack(main_output, rel_root, items, extra_class='stonecut-output')}"
             "</div>"
@@ -1287,6 +1292,7 @@ def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEn
 
     inner = (
         f"<div class='mc-gui mc-furnace {safe_text('mc-blast' if recipe.recipe_type == 'minecraft:blasting' else '')}'>"
+        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/container/blast_furnace.png' if recipe.recipe_type == 'minecraft:blasting' else 'assets/minecraft/textures/gui/container/furnace.png', 'gui-bg-furnace')}"
         f"{render_gui_stack(main_input, rel_root, items, extra_class='furnace-input-slot')}"
         "<div class='gui-slot empty furnace-fuel-slot'></div>"
         f"{render_gui_stack(main_output, rel_root, items, extra_class='furnace-output-slot')}"
@@ -1304,6 +1310,7 @@ def render_smithing_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
     output = recipe.outputs[0] if recipe.outputs else None
     inner = (
         "<div class='mc-gui mc-smithing'>"
+        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/container/smithing.png', 'gui-bg-smithing')}"
         f"{render_gui_stack({'item': normalize_ingredient(template), 'count': 1} if template else None, rel_root, items, extra_class='smith-template')}"
         f"{render_gui_stack({'item': normalize_ingredient(base), 'count': 1} if base else None, rel_root, items, extra_class='smith-base')}"
         f"{render_gui_stack({'item': normalize_ingredient(addition), 'count': 1} if addition else None, rel_root, items, extra_class='smith-addition')}"
@@ -1330,6 +1337,7 @@ def render_crafting_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
         slots.append(render_gui_slot(item_id, friendly_ingredient_label(value, items), rel_root, items, extra_class=f"craft-slot craft-slot-{idx}") if value else f"<div class='gui-slot empty craft-slot craft-slot-{idx}'></div>")
     inner = (
         "<div class='mc-gui mc-crafting'>"
+        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/container/crafting_table.png', 'gui-bg-crafting')}"
         f"{''.join(slots)}"
         f"{render_gui_stack(output, rel_root, items, extra_class='craft-result')}"
         "</div>"
@@ -1348,6 +1356,7 @@ def render_shapeless_recipe(recipe: Recipe, rel_root: str, items: dict[str, Item
         slots.append(render_gui_slot(item_id, friendly_ingredient_label(value, items), rel_root, items, extra_class=f"craft-slot craft-slot-{idx}") if value else f"<div class='gui-slot empty craft-slot craft-slot-{idx}'></div>")
     inner = (
         "<div class='mc-gui mc-crafting'>"
+        f"{render_gui_canvas(rel_root, 'assets/minecraft/textures/gui/container/crafting_table.png', 'gui-bg-crafting')}"
         f"{''.join(slots)}"
         f"{render_gui_stack(output, rel_root, items, extra_class='craft-result')}"
         "</div>"
