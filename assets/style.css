@@ -35,6 +35,14 @@ a:hover {
   text-decoration: underline;
 }
 
+h1,
+h2,
+h3,
+h4 {
+  font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
 .page {
   max-width: 1240px;
   margin: 0 auto;
@@ -48,6 +56,19 @@ a:hover {
 
 .site-shell {
   min-height: 100vh;
+  position: relative;
+}
+
+.site-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.03) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: radial-gradient(circle at center, black, transparent 80%);
 }
 
 .site-header {
@@ -220,6 +241,15 @@ a:hover {
   background: rgba(15, 23, 42, 0.6);
   color: #f8fafc;
   font-size: 1rem;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.searchbox:focus,
+.filter-row select:focus {
+  outline: none;
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.14);
+  background: rgba(15, 23, 42, 0.88);
 }
 
 .filter-row {
@@ -312,28 +342,30 @@ a:hover {
 .recipe-card {
   margin-bottom: 18px;
   padding: 16px;
-  background: #fbf7ee;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 24px;
+  box-shadow: 0 18px 44px rgba(2, 6, 23, 0.28);
 }
 
 .recipe-card.workstation {
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.18)),
-    linear-gradient(180deg, #8993a4, #677284);
-  border-color: rgba(15, 23, 42, 0.5);
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.15)),
+    linear-gradient(180deg, rgba(51,65,85,0.9), rgba(30,41,59,0.95));
+  border-color: rgba(148, 163, 184, 0.18);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.25),
-    inset 0 -2px 0 rgba(0,0,0,0.18);
+    inset 0 1px 0 rgba(255,255,255,0.12),
+    inset 0 -2px 0 rgba(0,0,0,0.24),
+    0 20px 40px rgba(2, 6, 23, 0.32);
 }
 
 .workstation-badge {
   display: inline-block;
   margin-bottom: 10px;
   padding: 5px 8px;
-  border-radius: 4px;
-  background: rgba(30, 30, 30, 0.18);
-  color: #242424;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.14);
+  color: #e0f2fe;
   font-size: 0.8rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -342,14 +374,14 @@ a:hover {
 
 .workstation-frame {
   padding: 18px 20px 16px;
-  border: 2px solid #313131;
-  border-radius: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 20px;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.06)),
-    linear-gradient(180deg, #c6c6c6, #b8b8b8);
+    linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.08)),
+    linear-gradient(180deg, rgba(51,65,85,0.92), rgba(30,41,59,0.92));
   box-shadow:
-    inset 2px 2px 0 rgba(255,255,255,0.22),
-    inset -2px -2px 0 rgba(0,0,0,0.16);
+    inset 1px 1px 0 rgba(255,255,255,0.08),
+    inset -1px -1px 0 rgba(0,0,0,0.18);
   position: relative;
 }
 
@@ -390,7 +422,7 @@ a:hover {
   right: 12px;
   top: 12px;
   height: 1px;
-  background: rgba(255,255,255,0.28);
+  background: rgba(255,255,255,0.08);
 }
 
 .workstation-frame::after {
@@ -400,7 +432,7 @@ a:hover {
   right: 12px;
   bottom: 12px;
   height: 1px;
-  background: rgba(0,0,0,0.12);
+  background: rgba(0,0,0,0.18);
 }
 
 .recipe-header {
@@ -409,6 +441,7 @@ a:hover {
   justify-content: space-between;
   gap: 12px;
   align-items: baseline;
+  color: #f8fafc;
 }
 
 .crafting-layout {
@@ -867,12 +900,10 @@ a:hover {
 .mc-meta-chip {
   display: inline-block;
   padding: 4px 8px;
-  background: #9d9d9d;
-  color: #222;
-  border-top: 2px solid rgba(255,255,255,0.35);
-  border-left: 2px solid rgba(255,255,255,0.35);
-  border-right: 2px solid rgba(0,0,0,0.2);
-  border-bottom: 2px solid rgba(0,0,0,0.2);
+  background: rgba(148, 163, 184, 0.12);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
 }
 
 .ingredient-list {
@@ -905,9 +936,19 @@ a:hover {
   padding: 20px 0 40px;
   color: var(--muted);
   font-size: 0.92rem;
+  text-align: center;
 }
 
 @media (max-width: 860px) {
+  .page {
+    padding: 20px 18px;
+  }
+
+  .header-inner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .grid.cols-2 {
     grid-template-columns: 1fr;
   }
