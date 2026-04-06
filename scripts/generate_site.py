@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import hashlib
 import urllib.parse
 import urllib.request
 import zipfile
@@ -73,6 +74,9 @@ class ModEntry:
     wiki_url: str = ""
     discord_url: str = ""
     item_ids: list[str] = field(default_factory=list)
+    docs_excerpt: str = ""
+    docs_points: list[str] = field(default_factory=list)
+    docs_source_url: str = ""
 
 
 def slugify(value: str) -> str:
@@ -261,6 +265,80 @@ def strip_markdown(text: str, *, limit: int = 420) -> str:
     cleaned = re.sub(r"[*_>#-]", " ", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned[:limit].rsplit(" ", 1)[0] + "..." if len(cleaned) > limit else cleaned
+
+
+def cache_path_for_url(url: str, suffix: str = ".txt") -> Path:
+    key = hashlib.sha1(url.encode("utf-8")).hexdigest()
+    return CACHE_DIR / "doc_pages" / f"{key}{suffix}"
+
+
+def fetch_text(url: str) -> str:
+    cache_file = cache_path_for_url(url)
+    if cache_file.exists():
+        try:
+            return cache_file.read_text(encoding="utf-8")
+        except Exception:
+            pass
+    request = urllib.request.Request(url, headers={"User-Agent": "jombiewiki-generator/1.0"})
+    try:
+        with urllib.request.urlopen(request) as response:
+            raw = response.read().decode("utf-8", errors="ignore")
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text(raw, encoding="utf-8")
+        return raw
+    except Exception:
+        return ""
+
+
+def extract_sentences(text: str, *, limit: int = 5) -> list[str]:
+    cleaned = strip_markdown(text, limit=4000)
+    parts = re.split(r"(?<=[.!?])\s+", cleaned)
+    sentences: list[str] = []
+    for part in parts:
+        normalized = part.strip(" -\n\t")
+        if len(normalized) < 35:
+            continue
+        if normalized.lower().startswith(("download", "installation requirements", "our patrons")):
+            continue
+        if normalized not in sentences:
+            sentences.append(normalized)
+        if len(sentences) >= limit:
+            break
+    return sentences
+
+
+def summarize_doc_html(raw_html: str) -> tuple[str, list[str]]:
+    if not raw_html:
+        return "", []
+    title_match = re.search(r"<title[^>]*>(.*?)</title>", raw_html, flags=re.IGNORECASE | re.DOTALL)
+    title = strip_markdown(title_match.group(1), limit=120) if title_match else ""
+    paragraphs = re.findall(r"<p[^>]*>(.*?)</p>", raw_html, flags=re.IGNORECASE | re.DOTALL)
+    body = "\n\n".join(strip_markdown(paragraph, limit=500) for paragraph in paragraphs[:12])
+    points = extract_sentences(body, limit=4)
+    excerpt = points[0] if points else title
+    return excerpt, points
+
+
+def enrich_mod_docs(mods: dict[str, ModEntry]) -> None:
+    for mod in mods.values():
+        candidates = [url for url in (mod.wiki_url, mod.source_url) if url and "github.com" not in url.lower()]
+        excerpt = ""
+        points: list[str] = []
+        source_url = ""
+        for candidate in candidates:
+            raw = fetch_text(candidate)
+            excerpt, points = summarize_doc_html(raw)
+            if excerpt or points:
+                source_url = candidate
+                break
+        if not excerpt:
+            fallback_source = mod.wiki_url or mod.modrinth_url
+            excerpt = mod.project_summary or mod.description
+            points = extract_sentences(mod.project_body or mod.project_summary or mod.description, limit=4)
+            source_url = fallback_source or ""
+        mod.docs_excerpt = excerpt
+        mod.docs_points = points
+        mod.docs_source_url = source_url
 
 
 def parse_modrinth_project_id(download_url: str) -> str:
@@ -1497,9 +1575,13 @@ def build_mod_pages(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> N
                 </div>
                 """
             )
+        top_items = sorted((items[item_id] for item_id in mod.item_ids), key=lambda item: (-len(item.recipes), item.display_name.lower()))
+        preferred = [item for item in top_items if item.namespace == mod.mod_id]
+        fallback = [item for item in top_items if item.namespace != mod.mod_id]
+        notable = (preferred + fallback)[:8]
         description = safe_text(mod.description) if mod.description else "No description was extracted from the jar metadata."
         summary = safe_text(mod.project_summary or mod.description or "No project summary was available.")
-        excerpt = safe_text(mod.project_body)
+        excerpt = safe_text(mod.docs_excerpt or mod.project_body)
         links = []
         if mod.modrinth_url:
             links.append(f"<span class='chip'><a href='{safe_text(mod.modrinth_url)}'>Modrinth Page</a></span>")
@@ -1521,6 +1603,11 @@ def build_mod_pages(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> N
             info_chips.append(f"<span class='chip'>Server: {safe_text(mod.server_side)}</span>")
         if mod.downloads:
             info_chips.append(f"<span class='chip'>Downloads: {mod.downloads:,}</span>")
+        docs_points = "".join(f"<li>{safe_text(point)}</li>" for point in mod.docs_points[:4])
+        notable_cards = "".join(
+            f"<div class='card'><div class='entry-head'>{item_icon_html(item.item_id, '..', items)}<h3><a href='../{safe_text(item_url(item.item_id))}'>{safe_text(item.display_name)}</a></h3></div><div class='path'>{safe_text(item.item_id)}</div><div class='muted'>{len(item.recipes)} recipe(s)</div></div>"
+            for item in notable
+        )
         body = f"""
         <div class="breadcrumbs"><a href="../index.html">Home</a> / <a href="index.html">Mods</a> / {safe_text(mod.mod_id)}</div>
         <div class="hero">
@@ -1541,6 +1628,24 @@ def build_mod_pages(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> N
         <div class="panel">
           <h2>About This Mod</h2>
           <p class="muted">{excerpt or description}</p>
+          {"<p class='muted'>Source: <a href='" + safe_text(mod.docs_source_url) + "'>" + safe_text(mod.docs_source_url) + "</a></p>" if mod.docs_source_url else ""}
+        </div>
+        <div class="grid cols-2">
+          <div class="panel">
+            <h2>Documentation Snapshot</h2>
+            {"<ul>" + docs_points + "</ul>" if docs_points else "<p class='muted'>No additional documentation summary could be extracted yet. Use the links above for the official docs or project page.</p>"}
+          </div>
+          <div class="panel">
+            <h2>Pack Presence</h2>
+            <p class="muted">{safe_text(mod.name)} contributes {len(mod.item_ids)} cataloged item/block entries to JombiePack.</p>
+            <p class="muted">{safe_text(mod.project_summary or mod.description or "This mod is present in the pack, but its exact gameplay role still needs a fuller pack-specific write-up.")}</p>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Notable Entries</h2>
+          <div class="card-grid">
+            {notable_cards or "<p class='muted'>No high-visibility entries were detected for this mod yet, but it may still affect gameplay through systems, tweaks, or behind-the-scenes integrations.</p>"}
+          </div>
         </div>
         <div class="panel">
           <h2>Items and Blocks</h2>
@@ -1652,6 +1757,7 @@ def main() -> None:
     extract_gui_assets(minecraft_client_jar)
     extract_mod_icons(mods)
     extract_item_icons(jar_paths, items, minecraft_client_jar)
+    enrich_mod_docs(mods)
     build_home(mods, items)
     build_mod_index(mods)
     build_mod_pages(mods, items)
