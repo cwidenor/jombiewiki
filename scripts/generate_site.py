@@ -1380,6 +1380,39 @@ def recipe_asset_path(name: str) -> Path:
     return SITE_DIR / "assets" / "recipes" / name
 
 
+def render_recipe_image(
+    image_rel: str,
+    rel_root: str,
+    *,
+    alt: str,
+    width: int,
+    height: int,
+    scale: float,
+    hotspots: list[dict[str, Any]] | None = None,
+) -> str:
+    hotspots = hotspots or []
+    overlay_html = []
+    for hotspot in hotspots:
+        item_id = str(hotspot.get("item_id", ""))
+        if not item_id:
+            continue
+        href = f"{rel_root}/{item_url(item_id)}"
+        x = float(hotspot["x"])
+        y = float(hotspot["y"])
+        size = float(hotspot.get("size", 18))
+        label = hotspot.get("label", item_id)
+        overlay_html.append(
+            f"<a class='recipe-hotspot' href='{safe_text(href)}' title='{safe_text(label)}' "
+            f"style='left:{x}px;top:{y}px;width:{size}px;height:{size}px;'></a>"
+        )
+    return (
+        f"<div class='recipe-render' style='--recipe-w:{width}px;--recipe-h:{height}px;--recipe-scale:{scale};'>"
+        f"<img class='recipe-render-img' src='{rel_root}/{safe_text(image_rel)}' alt='{safe_text(alt)}'>"
+        f"{''.join(overlay_html)}"
+        f"</div>"
+    )
+
+
 def load_slot_icon(item_id: str, items: dict[str, ItemEntry]) -> Any | None:
     try:
         from PIL import Image
@@ -1468,6 +1501,12 @@ def compose_recipe_image(
     return recipe_asset_rel(target_name)
 
 
+def hotspot(item_id: str | None, x: int, y: int, label: str, *, size: int = 18) -> dict[str, Any] | None:
+    if not item_id or item_id.startswith("#"):
+        return None
+    return {"item_id": item_id, "x": x, "y": y, "size": size, "label": label}
+
+
 def workstation_shell(station: str, layout_class: str, inner_html: str, recipe_id: str, recipe_type: str) -> str:
     frame_class = f"frame-{slugify(layout_class)}"
     return f"""
@@ -1511,8 +1550,12 @@ def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEn
         layout_class = "stonecutter-ui"
         station = "Stonecutter"
         image_rel = compose_recipe_image(recipe, items, layout="stonecutter", ingredients=[main_input] if main_input else [], outputs=[main_output] if main_output else [])
+        hotspots = [h for h in [
+            hotspot(str(main_input.get("item", "")) if main_input else None, 20, 33, friendly_stack_label(main_input, items) if main_input else ""),
+            hotspot(str(main_output.get("item", "")) if main_output else None, 143, 33, friendly_stack_label(main_output, items) if main_output else ""),
+        ] if h]
         inner = (
-            (f"<div class='recipe-render'><img class='recipe-render-img' src='{rel_root}/{safe_text(image_rel)}' alt='Stonecutter recipe'></div>" if image_rel else "")
+            (render_recipe_image(image_rel, rel_root, alt="Stonecutter recipe", width=176, height=166, scale=2.85, hotspots=hotspots) if image_rel else "")
             + f"{render_recipe_meta(meta_parts)}"
         )
         return workstation_shell(station, layout_class, inner, recipe.recipe_id, title)
@@ -1537,8 +1580,12 @@ def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEn
         ingredients=[main_input] if main_input else [],
         outputs=[main_output] if main_output else [],
     )
+    hotspots = [h for h in [
+        hotspot(str(main_input.get("item", "")) if main_input else None, 56, 17, friendly_stack_label(main_input, items) if main_input else ""),
+        hotspot(str(main_output.get("item", "")) if main_output else None, 116, 35, friendly_stack_label(main_output, items) if main_output else ""),
+    ] if h]
     inner = (
-        (f"<div class='recipe-render'><img class='recipe-render-img' src='{rel_root}/{safe_text(image_rel)}' alt='Processing recipe'></div>" if image_rel else "")
+        (render_recipe_image(image_rel, rel_root, alt="Processing recipe", width=176, height=166, scale=2.75, hotspots=hotspots) if image_rel else "")
         + (f"<div class='byproduct-row'><div class='ui-subtitle'>Extra Outputs</div>{render_stack_list(extra_outputs, rel_root, items)}</div>" if extra_outputs else "")
         + render_recipe_meta(meta_parts)
     )
@@ -1561,7 +1608,13 @@ def render_smithing_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
         ],
         outputs=[output] if output else [],
     )
-    inner = f"<div class='recipe-render'><img class='recipe-render-img' src='{rel_root}/{safe_text(image_rel)}' alt='Smithing recipe'></div>" if image_rel else ""
+    hotspots = [h for h in [
+        hotspot(normalize_ingredient(template) if template else None, 8, 48, friendly_ingredient_label(normalize_ingredient(template), items) if template else ""),
+        hotspot(normalize_ingredient(base) if base else None, 26, 48, friendly_ingredient_label(normalize_ingredient(base), items) if base else ""),
+        hotspot(normalize_ingredient(addition) if addition else None, 44, 48, friendly_ingredient_label(normalize_ingredient(addition), items) if addition else ""),
+        hotspot(str(output.get("item", "")) if output else None, 98, 48, friendly_stack_label(output, items) if output else ""),
+    ] if h]
+    inner = render_recipe_image(image_rel, rel_root, alt="Smithing recipe", width=176, height=166, scale=2.75, hotspots=hotspots) if image_rel else ""
     return workstation_shell("Smithing Table", "smithing-ui", inner, recipe.recipe_id, title)
 
 
@@ -1587,7 +1640,16 @@ def render_crafting_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
         ingredients=[{"item": value, "count": 1} if value else None for value in rows],
         outputs=[output],
     )
-    inner = f"<div class='recipe-render'><img class='recipe-render-img' src='{rel_root}/{safe_text(image_rel)}' alt='Crafting recipe'></div>" if image_rel else ""
+    hotspots = []
+    craft_positions = [(4, 2), (22, 2), (40, 2), (4, 20), (22, 20), (40, 20), (4, 38), (22, 38), (40, 38)]
+    for value, (x, y) in zip(rows, craft_positions):
+        if value and not value.startswith("#"):
+            hotspots.append(hotspot(value, x, y, friendly_ingredient_label(value, items)))
+    hotspots = [h for h in hotspots if h]
+    output_hotspot = hotspot(str(output.get("item", "")), 98, 20, friendly_stack_label(output, items))
+    if output_hotspot:
+        hotspots.append(output_hotspot)
+    inner = render_recipe_image(image_rel, rel_root, alt="Crafting recipe", width=124, height=58, scale=5.0, hotspots=hotspots) if image_rel else ""
     return workstation_shell("Crafting Table", "crafting-table", inner, recipe.recipe_id, recipe.recipe_type)
 
 
@@ -1607,8 +1669,17 @@ def render_shapeless_recipe(recipe: Recipe, rel_root: str, items: dict[str, Item
         ingredients=[{"item": value, "count": 1} if value else None for value in ingredients],
         outputs=[output],
     )
+    hotspots = []
+    craft_positions = [(4, 2), (22, 2), (40, 2), (4, 20), (22, 20), (40, 20), (4, 38), (22, 38), (40, 38)]
+    for value, (x, y) in zip(ingredients, craft_positions):
+        if value and not value.startswith("#"):
+            hotspots.append(hotspot(value, x, y, friendly_ingredient_label(value, items)))
+    hotspots = [h for h in hotspots if h]
+    output_hotspot = hotspot(str(output.get("item", "")), 98, 20, friendly_stack_label(output, items))
+    if output_hotspot:
+        hotspots.append(output_hotspot)
     inner = (
-        (f"<div class='recipe-render'><img class='recipe-render-img' src='{rel_root}/{safe_text(image_rel)}' alt='Crafting recipe'></div>" if image_rel else "")
+        (render_recipe_image(image_rel, rel_root, alt="Crafting recipe", width=124, height=58, scale=5.0, hotspots=hotspots) if image_rel else "")
         + "<div class='recipe-meta mc-meta-row'><span class='mc-meta-chip'>Shapeless</span></div>"
     )
     return workstation_shell("Crafting Table", "crafting-table", inner, recipe.recipe_id, recipe.recipe_type)
