@@ -1362,7 +1362,7 @@ def render_gui_stack(
 
 
 def render_gui_canvas(rel_root: str, asset_path: str, class_name: str) -> str:
-    return f'<img class="gui-bg {safe_text(class_name)}" src="{rel_root}/{safe_text(asset_path)}" alt="">'
+    return f'<div class="gui-bg {safe_text(class_name)}" style="background-image:url(\'{rel_root}/{safe_text(asset_path)}\')"></div>'
 
 
 def workstation_shell(station: str, layout_class: str, inner_html: str, recipe_id: str, recipe_type: str) -> str:

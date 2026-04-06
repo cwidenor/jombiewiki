@@ -501,10 +501,15 @@ h4 {
   top: 0;
   width: 100%;
   height: 100%;
-  object-fit: fill;
+  display: block;
+  background-repeat: no-repeat;
+  background-position: top left;
+  background-size: 100% 100%;
   image-rendering: pixelated;
   pointer-events: none;
   user-select: none;
+  z-index: 0;
+  opacity: 1;
 }
 
 .gui-slot {
@@ -516,6 +521,7 @@ h4 {
   justify-content: center;
   color: inherit;
   text-decoration: none;
+  z-index: 2;
 }
 
 .gui-slot.empty {
