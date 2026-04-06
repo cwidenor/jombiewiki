@@ -22,6 +22,7 @@ DOWNLOAD_DIR = Path(os.environ.get("JOMBIEPACK_DOWNLOAD_DIR", str(CACHE_DIR / "d
 OVERRIDE_CACHE = CACHE_DIR / "override_jars"
 SITE_DIR = ROOT / "site"
 ASSETS_DIR = ROOT / "assets"
+MINECRAFT_CACHE = CACHE_DIR / "minecraft"
 
 
 @dataclass
@@ -314,6 +315,73 @@ def load_pack_index() -> dict[str, Any]:
     with zipfile.ZipFile(PACK_PATH) as pack:
         with pack.open("modrinth.index.json") as fh:
             return json.load(fh)
+
+
+def pack_minecraft_version(index_data: dict[str, Any]) -> str:
+    deps = index_data.get("dependencies", {})
+    if isinstance(deps, dict) and isinstance(deps.get("minecraft"), str):
+        return deps["minecraft"]
+    return "1.21.1"
+
+
+def local_version_json_candidates(version: str) -> list[Path]:
+    env_path = os.environ.get("MINECRAFT_VERSION_JSON", "").strip()
+    candidates = [
+        Path(env_path) if env_path else None,
+        Path(f"C:/Users/chris/curseforge/minecraft/Install/versions/{version}/{version}.json"),
+        Path(f"C:/Users/chris/AppData/Roaming/.minecraft/versions/{version}/{version}.json"),
+    ]
+    return [path for path in candidates if path]
+
+
+def local_client_jar_candidates(version: str) -> list[Path]:
+    env_path = os.environ.get("MINECRAFT_CLIENT_JAR", "").strip()
+    candidates = [
+        Path(env_path) if env_path else None,
+        Path(f"C:/Users/chris/curseforge/minecraft/Install/versions/{version}/{version}.jar"),
+        Path(f"C:/Users/chris/AppData/Roaming/.minecraft/versions/{version}/{version}.jar"),
+        MINECRAFT_CACHE / version / f"{version}.jar",
+    ]
+    return [path for path in candidates if path]
+
+
+def fetch_minecraft_version_metadata(version: str) -> dict[str, Any] | None:
+    for candidate in local_version_json_candidates(version):
+        if candidate.exists():
+            try:
+                return json.loads(candidate.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+    manifest = fetch_json("https://launchermeta.mojang.com/mc/game/version_manifest_v2.json")
+    if not isinstance(manifest, dict):
+        return None
+    versions = manifest.get("versions", [])
+    if not isinstance(versions, list):
+        return None
+    match = next((entry for entry in versions if isinstance(entry, dict) and entry.get("id") == version), None)
+    if not isinstance(match, dict) or not isinstance(match.get("url"), str):
+        return None
+    data = fetch_json(match["url"])
+    return data if isinstance(data, dict) else None
+
+
+def ensure_minecraft_client_jar(version: str) -> Path | None:
+    for candidate in local_client_jar_candidates(version):
+        if candidate.exists():
+            return candidate
+    metadata = fetch_minecraft_version_metadata(version)
+    if not isinstance(metadata, dict):
+        return None
+    downloads = metadata.get("downloads", {})
+    if not isinstance(downloads, dict):
+        return None
+    client = downloads.get("client", {})
+    if not isinstance(client, dict) or not isinstance(client.get("url"), str):
+        return None
+    target = MINECRAFT_CACHE / version / f"{version}.jar"
+    if target.exists() or download_file(client["url"], target):
+        return target
+    return None
 
 
 def load_modrinth_projects(project_ids: list[str]) -> dict[str, dict[str, Any]]:
@@ -706,10 +774,12 @@ def heuristic_tag_items(tag_id: str, items: dict[str, ItemEntry]) -> set[str]:
     return matches
 
 
-def load_catalog() -> tuple[list[Path], dict[str, ModEntry], dict[str, ItemEntry]]:
+def load_catalog() -> tuple[list[Path], Path | None, dict[str, ModEntry], dict[str, ItemEntry]]:
     index_data = load_pack_index()
+    minecraft_version = pack_minecraft_version(index_data)
     download_missing_mod_jars(index_data)
     jar_paths = find_jar_paths(index_data)
+    minecraft_client_jar = ensure_minecraft_client_jar(minecraft_version)
     jar_project_ids: dict[str, str] = {}
     for file_entry in index_data.get("files", []):
         path = file_entry.get("path", "")
@@ -830,7 +900,7 @@ def load_catalog() -> tuple[list[Path], dict[str, ModEntry], dict[str, ItemEntry
     for mod in mods.values():
         mod.item_ids = sorted(set(mod.item_ids), key=str.lower)
 
-    return jar_paths, dict(sorted(mods.items())), dict(sorted(items.items()))
+    return jar_paths, minecraft_client_jar, dict(sorted(mods.items())), dict(sorted(items.items()))
 
 
 def item_url(item_id: str) -> str:
@@ -950,11 +1020,39 @@ def copy_asset_from_jar(zf: zipfile.ZipFile, asset_path: str, target_root: Path)
     return relative.as_posix()
 
 
-def extract_item_icons(jar_paths: list[Path], items: dict[str, ItemEntry]) -> None:
+def extract_gui_assets(minecraft_client_jar: Path | None) -> None:
+    if not minecraft_client_jar or not minecraft_client_jar.exists():
+        return
+    wanted = [
+        "assets/minecraft/textures/gui/container/crafting_table.png",
+        "assets/minecraft/textures/gui/container/furnace.png",
+        "assets/minecraft/textures/gui/container/blast_furnace.png",
+        "assets/minecraft/textures/gui/container/stonecutter.png",
+        "assets/minecraft/textures/gui/container/smithing.png",
+        "assets/minecraft/textures/gui/sprites/container/slot.png",
+        "assets/minecraft/textures/gui/sprites/container/furnace/lit_progress.png",
+        "assets/minecraft/textures/gui/sprites/container/furnace/burn_progress.png",
+        "assets/minecraft/textures/gui/sprites/container/blast_furnace/lit_progress.png",
+        "assets/minecraft/textures/gui/sprites/container/blast_furnace/burn_progress.png",
+        "assets/minecraft/textures/gui/sprites/container/stonecutter/recipe.png",
+        "assets/minecraft/textures/gui/sprites/container/smithing/error.png",
+    ]
+    with zipfile.ZipFile(minecraft_client_jar) as zf:
+        names = set(zf.namelist())
+        for asset_path in wanted:
+            if asset_path in names:
+                copy_asset_from_jar(zf, asset_path, SITE_DIR)
+
+
+def extract_item_icons(jar_paths: list[Path], items: dict[str, ItemEntry], minecraft_client_jar: Path | None = None) -> None:
     texture_root = SITE_DIR / "assets" / "textures"
     texture_root.mkdir(parents=True, exist_ok=True)
 
-    for jar_path in jar_paths:
+    icon_sources = list(jar_paths)
+    if minecraft_client_jar and minecraft_client_jar.exists():
+        icon_sources.append(minecraft_client_jar)
+
+    for jar_path in icon_sources:
         with zipfile.ZipFile(jar_path) as zf:
             names = set(zf.namelist())
             for item in items.values():
@@ -995,6 +1093,12 @@ def item_icon_html(item_id: str, rel_root: str, items: dict[str, ItemEntry], *, 
     return f'<img class="icon{size_class}" src="{rel_root}/{safe_text(item.icon_path)}" alt="{safe_text(item.display_name)}">'
 
 
+def item_ref_href(item_id: str, rel_root: str, items: dict[str, ItemEntry]) -> str:
+    if item_id.startswith("#") or item_id not in items:
+        return ""
+    return f"{rel_root}/{item_url(item_id)}"
+
+
 def mod_icon_html(mod: ModEntry, rel_root: str, *, large: bool = False) -> str:
     if not mod.modrinth_icon_path:
         return ""
@@ -1011,7 +1115,13 @@ def render_slot(label: str, rel_root: str, items: dict[str, ItemEntry], icon_ite
         item_id = label.split(" ×", 1)[0]
     if item_id and not item_id.startswith("#"):
         icon = item_icon_html(item_id, rel_root, items)
-    return f'<div class="slot"><div class="slot-content">{icon}<div>{safe_text(label)}</div></div></div>'
+    inner = f"{icon}<div>{safe_text(label)}</div>"
+    href = item_ref_href(item_id, rel_root, items) if item_id else ""
+    if href:
+        inner = f'<a class="slot-link slot-content" href="{safe_text(href)}">{inner}</a>'
+    else:
+        inner = f'<div class="slot-content">{inner}</div>'
+    return f'<div class="slot">{inner}</div>'
 
 
 def render_stack_label(stack: dict[str, Any]) -> str:
@@ -1041,6 +1151,7 @@ def render_single_stack(stack: dict[str, Any] | None, rel_root: str, items: dict
 
 
 def workstation_shell(station: str, layout_class: str, inner_html: str, recipe_id: str, recipe_type: str) -> str:
+    frame_class = f"frame-{slugify(layout_class)}"
     return f"""
     <div class="recipe-card workstation">
       <div class="workstation-badge">{safe_text(station)}</div>
@@ -1048,7 +1159,7 @@ def workstation_shell(station: str, layout_class: str, inner_html: str, recipe_i
         <strong>{safe_text(recipe_type)}</strong>
         <span class="muted path">{safe_text(recipe_id)}</span>
       </div>
-      <div class="workstation-frame">
+      <div class="workstation-frame {safe_text(frame_class)}">
         <div class="crafting-layout {safe_text(layout_class)}">
           {inner_html}
         </div>
@@ -1455,14 +1566,15 @@ def copy_assets() -> None:
 
 
 def main() -> None:
-    jar_paths, mods, items = load_catalog()
+    jar_paths, minecraft_client_jar, mods, items = load_catalog()
     if SITE_DIR.exists():
         shutil.rmtree(SITE_DIR)
     SITE_DIR.mkdir(parents=True, exist_ok=True)
     (SITE_DIR / ".nojekyll").write_text("", encoding="utf-8")
     copy_assets()
+    extract_gui_assets(minecraft_client_jar)
     extract_mod_icons(mods)
-    extract_item_icons(jar_paths, items)
+    extract_item_icons(jar_paths, items, minecraft_client_jar)
     build_home(mods, items)
     build_mod_index(mods)
     build_mod_pages(mods, items)

@@ -256,6 +256,65 @@ a:hover {
   box-shadow:
     inset 2px 2px 0 rgba(255,255,255,0.22),
     inset -2px -2px 0 rgba(0,0,0,0.16);
+  position: relative;
+}
+
+.workstation-frame.frame-crafting-table {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.06)),
+    url("minecraft/textures/gui/container/crafting_table.png") no-repeat top left,
+    linear-gradient(180deg, #c6c6c6, #b8b8b8);
+  background-size: auto, 256px 256px, auto;
+}
+
+.workstation-frame.frame-furnace-ui {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.06)),
+    url("minecraft/textures/gui/container/furnace.png") no-repeat top left,
+    linear-gradient(180deg, #c6c6c6, #b8b8b8);
+  background-size: auto, 256px 256px, auto;
+}
+
+.workstation-frame.frame-stonecutter-ui {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.06)),
+    url("minecraft/textures/gui/container/stonecutter.png") no-repeat top left,
+    linear-gradient(180deg, #c6c6c6, #b8b8b8);
+  background-size: auto, 256px 256px, auto;
+}
+
+.workstation-frame.frame-smithing-ui {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.06)),
+    url("minecraft/textures/gui/container/smithing.png") no-repeat top left,
+    linear-gradient(180deg, #c6c6c6, #b8b8b8);
+  background-size: auto, 256px 256px, auto;
+}
+
+.workstation-frame.frame-create-ui {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.06)),
+    linear-gradient(180deg, #c6c6c6, #b8b8b8);
+}
+
+.workstation-frame::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 12px;
+  height: 1px;
+  background: rgba(255,255,255,0.28);
+}
+
+.workstation-frame::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  height: 1px;
+  background: rgba(0,0,0,0.12);
 }
 
 .recipe-header {
@@ -301,6 +360,7 @@ a:hover {
   color: #3b3b3b;
   font-size: 0.92rem;
   text-shadow: 1px 1px 0 rgba(255,255,255,0.18);
+  font-weight: 500;
 }
 
 .ui-title.right,
@@ -354,7 +414,9 @@ a:hover {
   position: relative;
   min-height: 78px;
   padding: 6px;
-  background: linear-gradient(180deg, #8c8c8c, #707070);
+  background:
+    url("minecraft/textures/gui/sprites/container/slot.png") no-repeat center/cover,
+    linear-gradient(180deg, #8c8c8c, #707070);
   border-top: 2px solid #373737;
   border-left: 2px solid #373737;
   border-right: 2px solid #ffffff;
@@ -375,7 +437,7 @@ a:hover {
   content: "";
   position: absolute;
   inset: 2px;
-  background: linear-gradient(180deg, rgba(0,0,0,0.18), rgba(255,255,255,0.05));
+  background: linear-gradient(180deg, rgba(0,0,0,0.08), rgba(255,255,255,0.03));
   pointer-events: none;
 }
 
@@ -385,6 +447,24 @@ a:hover {
   display: grid;
   gap: 4px;
   justify-items: center;
+}
+
+.slot-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.slot-link:hover {
+  text-decoration: none;
+}
+
+.slot-link div:last-child {
+  text-decoration: underline transparent;
+  transition: text-decoration-color 120ms ease;
+}
+
+.slot-link:hover div:last-child {
+  text-decoration-color: currentColor;
 }
 
 .slot-content img {
@@ -466,6 +546,22 @@ a:hover {
   inset: 2px auto 2px 2px;
   width: 62%;
   background: linear-gradient(180deg, #ececec, #bfbfbf);
+}
+
+.frame-furnace-ui .furnace-center .furnace-fire::before {
+  background:
+    url("minecraft/textures/gui/sprites/container/furnace/lit_progress.png") no-repeat center/contain;
+  clip-path: none;
+}
+
+.frame-furnace-ui .furnace-progress .progress-bar {
+  background:
+    url("minecraft/textures/gui/sprites/container/furnace/burn_progress.png") no-repeat center/contain,
+    #8b8b8b;
+}
+
+.frame-furnace-ui .furnace-progress .progress-bar::after {
+  display: none;
 }
 
 .stonecutter-wheel {
