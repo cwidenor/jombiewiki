@@ -32,12 +32,12 @@ async function setupSearch(inputId, resultsId, indexPath) {
     }
 
     results.innerHTML = matches.map((entry) => `
-      <div class="card">
+      <article class="rounded-3xl border border-slate-700/50 bg-slate-900/65 p-5 shadow-lg shadow-slate-950/20 transition hover:-translate-y-0.5 hover:border-sky-400/30 hover:bg-slate-900/85">
         <div class="kicker">${entry.kind}</div>
-        <h3><a href="${entry.url}">${entry.title}</a></h3>
-        <div class="muted">${entry.mod || ""}</div>
-        <div class="path">${entry.id || ""}</div>
-      </div>
+        <h3 class="mt-3 text-lg font-semibold text-white"><a class="hover:text-sky-300" href="${entry.url}">${entry.title}</a></h3>
+        <div class="muted mt-2 text-sm">${entry.mod || ""}</div>
+        <div class="path mt-3 text-slate-400">${entry.id || ""}</div>
+      </article>
     `).join("");
   };
 

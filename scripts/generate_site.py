@@ -1533,43 +1533,75 @@ def build_home(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> None:
         "simple_voice_chat",
     ]
     featured_links = "".join(
-        f"<span class='chip'><a href='{safe_text(mod_url(mod_id))}'>{safe_text(mods[mod_id].name)}</a></span>"
+        f"<a class='inline-flex items-center rounded-full border border-sky-400/20 bg-sky-400/10 px-3 py-1.5 text-sm font-medium text-sky-100 transition hover:border-sky-300/40 hover:bg-sky-400/20' href='{safe_text(mod_url(mod_id))}'>{safe_text(mods[mod_id].name)}</a>"
         for mod_id in featured
         if mod_id in mods
     )
     body = f"""
-    <div class="hero">
-      <div class="kicker">Pack Wiki</div>
-      <h1>JombiePack Item and Mod Catalog</h1>
-      <p class="muted">JombiePack is a NeoForge 1.21.1 pack built around co-op survival, large-scale exploration, active combat, colony building, Create machinery, and a strong atmosphere layer.</p>
-      <div class="statlist">
-        <div class="stat"><span class="label">Mods</span><strong>{len(mods)}</strong></div>
-        <div class="stat"><span class="label">Item or Block Entries</span><strong>{len(items)}</strong></div>
+    <section class="relative overflow-hidden rounded-[32px] border border-slate-700/60 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 px-8 py-10 shadow-2xl shadow-slate-950/40">
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.18),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(249,115,22,0.14),transparent_24%)]"></div>
+      <div class="relative">
+        <div class="mb-3 inline-flex items-center rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-200">Pack Wiki</div>
+        <div class="max-w-3xl">
+          <h1 class="text-4xl font-black tracking-tight text-white sm:text-5xl">JombiePack Wiki</h1>
+          <p class="mt-4 text-lg leading-8 text-slate-300">JombiePack is a NeoForge 1.21.1 pack built around co-op survival, large-scale exploration, active combat, colony building, Create machinery, and a stronger sense of atmosphere and progression.</p>
+        </div>
+        <div class="mt-8 grid gap-4 sm:grid-cols-3">
+          <div class="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-5 backdrop-blur">
+            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Mods</div>
+            <div class="mt-2 text-3xl font-black text-white">{len(mods)}</div>
+          </div>
+          <div class="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-5 backdrop-blur">
+            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Catalog Entries</div>
+            <div class="mt-2 text-3xl font-black text-white">{len(items)}</div>
+          </div>
+          <div class="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-5 backdrop-blur">
+            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Best For</div>
+            <div class="mt-2 text-lg font-semibold text-white">Exploration, tech, combat</div>
+          </div>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <div class="panel">
-      <h2>Search</h2>
-      <input id="search" class="searchbox" placeholder="Search mods, items, or registry ids">
-      <div id="results" class="card-grid" style="margin-top:16px;"></div>
-    </div>
+    <section class="mt-8 rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
+      <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div class="max-w-2xl">
+          <h2 class="text-2xl font-bold text-white">Search the Wiki</h2>
+          <p class="mt-2 text-sm leading-6 text-slate-400">Search mods, item names, blocks, and registry IDs from anywhere in the pack.</p>
+        </div>
+      </div>
+      <div class="mt-5">
+        <input id="search" class="searchbox" placeholder="Search mods, items, or registry ids">
+      </div>
+      <div id="results" class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3"></div>
+    </section>
 
-    <div class="grid cols-2">
-      <div class="panel">
-        <h2>Pack Focus</h2>
-        <p class="muted">Expect upgraded structures, more dangerous roaming, spell and weapon build variety, long-term settlement play through MineColonies, and a slower End progression path through End Remastered.</p>
-        <div class="chips">{featured_links}</div>
+    <section class="mt-8 grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+      <div class="rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
+        <h2 class="text-2xl font-bold text-white">Pack Focus</h2>
+        <p class="mt-3 max-w-3xl text-sm leading-7 text-slate-300">Expect upgraded structures, more dangerous roaming, spell and weapon build variety, long-term settlement play through MineColonies, and a slower End progression path through End Remastered. This wiki is designed to help players jump from broad pack systems into exact items and recipes quickly.</p>
+        <div class="mt-5 flex flex-wrap gap-3">{featured_links}</div>
       </div>
-      <div class="panel">
-        <h2>Browse</h2>
-        <p><a href="mods/index.html">All mods</a></p>
-        <p><a href="items/index.html">All items and block entries</a></p>
+      <div class="space-y-6">
+        <div class="rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
+          <h2 class="text-xl font-bold text-white">Browse</h2>
+          <div class="mt-4 grid gap-3">
+            <a class="rounded-2xl border border-slate-700/50 bg-slate-800/70 px-4 py-4 text-slate-100 transition hover:border-sky-400/30 hover:bg-slate-800" href="mods/index.html">
+              <div class="text-sm font-semibold">All Mods</div>
+              <div class="mt-1 text-sm text-slate-400">Project pages, docs, links, and pack presence</div>
+            </a>
+            <a class="rounded-2xl border border-slate-700/50 bg-slate-800/70 px-4 py-4 text-slate-100 transition hover:border-sky-400/30 hover:bg-slate-800" href="items/index.html">
+              <div class="text-sm font-semibold">All Items and Blocks</div>
+              <div class="mt-1 text-sm text-slate-400">Recipe browser, usage lookup, and per-item pages</div>
+            </a>
+          </div>
+        </div>
+        <div class="rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
+          <h2 class="text-xl font-bold text-white">Recipe Notes</h2>
+          <p class="mt-3 text-sm leading-7 text-slate-400">Vanilla workstation recipes are rendered with real Minecraft GUI art and slot overlays. Create and other processing recipes still use a custom machine-card layout for readability.</p>
+        </div>
       </div>
-      <div class="panel">
-        <h2>Notes</h2>
-        <p class="muted">Crafting-table style layouts are rendered for shaped and shapeless crafting data when the recipe JSON exposes that structure directly. Other recipe types are listed as machine or processing recipes.</p>
-      </div>
-    </div>
+    </section>
 
     <script src="assets/search.js"></script>
     <script>setupSearch("search", "results", "assets/search-index.json");</script>
@@ -1584,18 +1616,28 @@ def build_mod_index(mods: dict[str, ModEntry]) -> None:
     for mod in mods.values():
         icon = mod_icon_html(mod, "..")
         rows.append(
-            f"<tr><td><div class='entry-head'>{icon}<a href='{safe_text(slugify(mod.mod_id))}.html'>{safe_text(mod.name)}</a></div></td>"
-            f"<td class='path'>{safe_text(mod.mod_id)}</td><td>{len(mod.item_ids)}</td></tr>"
+            f"<tr class='border-b border-slate-800/80 hover:bg-slate-800/40'>"
+            f"<td class='py-4 pr-3'><div class='entry-head'>{icon}<div><a class='font-semibold text-white hover:text-sky-300' href='{safe_text(slugify(mod.mod_id))}.html'>{safe_text(mod.name)}</a><div class='mt-1 text-xs text-slate-500'>{safe_text(mod.project_summary or mod.description or 'No summary available.')}</div></div></div></td>"
+            f"<td class='path py-4 pr-3 text-slate-300'>{safe_text(mod.mod_id)}</td><td class='py-4 text-slate-300'>{len(mod.item_ids)}</td></tr>"
         )
     body = f"""
-    <div class="breadcrumbs"><a href="../index.html">Home</a> / Mods</div>
-    <div class="panel">
-      <h1>Mods</h1>
+    <div class="breadcrumbs text-sm text-slate-500"><a href="../index.html">Home</a> / Mods</div>
+    <section class="rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
+      <div class="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div class="kicker">Browse</div>
+          <h1 class="text-3xl font-black tracking-tight text-white">Mods in JombiePack</h1>
+          <p class="mt-2 text-sm leading-6 text-slate-400">Every mod discovered from the pack index, with project links, docs, and local item presence.</p>
+        </div>
+        <div class="rounded-2xl border border-slate-700/50 bg-slate-800/60 px-4 py-3 text-sm text-slate-300">{len(mods)} total mods</div>
+      </div>
+      <div class="overflow-x-auto rounded-2xl border border-slate-800/80 bg-slate-950/40">
       <table class="list-table">
-        <thead><tr><th>Name</th><th>Mod ID</th><th>Entries</th></tr></thead>
+        <thead><tr><th class='text-left'>Name</th><th class='text-left'>Mod ID</th><th class='text-left'>Entries</th></tr></thead>
         <tbody>{''.join(rows)}</tbody>
       </table>
-    </div>
+      </div>
+    </section>
     """
     (mod_dir / "index.html").write_text(page("Mods", body, rel_root=".."), encoding="utf-8")
 
@@ -1610,15 +1652,15 @@ def build_mod_pages(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> N
             icon = item_icon_html(item.item_id, "..", items)
             cards.append(
                 f"""
-                <div class="card">
+                <article class="rounded-3xl border border-slate-700/50 bg-slate-900/65 p-5 shadow-lg shadow-slate-950/20 transition hover:-translate-y-0.5 hover:border-sky-400/30 hover:bg-slate-900/85">
                   <div class="kicker">{safe_text(item.entry_type)}</div>
-                  <div class="entry-head">
+                  <div class="entry-head mt-3">
                     {icon}
-                    <h3><a href="../{safe_text(item_url(item.item_id))}">{safe_text(item.display_name)}</a></h3>
+                    <h3 class="text-base font-semibold text-white"><a class="hover:text-sky-300" href="../{safe_text(item_url(item.item_id))}">{safe_text(item.display_name)}</a></h3>
                   </div>
-                  <div class="path">{safe_text(item.item_id)}</div>
-                  <div class="muted">{len(item.recipes)} recipe(s)</div>
-                </div>
+                  <div class="path mt-3 text-slate-400">{safe_text(item.item_id)}</div>
+                  <div class="muted mt-2 text-sm">{len(item.recipes)} recipe(s)</div>
+                </article>
                 """
             )
         top_items = sorted((items[item_id] for item_id in mod.item_ids), key=lambda item: (-len(item.recipes), item.display_name.lower()))
@@ -1651,54 +1693,66 @@ def build_mod_pages(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> N
             info_chips.append(f"<span class='chip'>Downloads: {mod.downloads:,}</span>")
         docs_points = "".join(f"<li>{safe_text(point)}</li>" for point in mod.docs_points[:4])
         notable_cards = "".join(
-            f"<div class='card'><div class='entry-head'>{item_icon_html(item.item_id, '..', items)}<h3><a href='../{safe_text(item_url(item.item_id))}'>{safe_text(item.display_name)}</a></h3></div><div class='path'>{safe_text(item.item_id)}</div><div class='muted'>{len(item.recipes)} recipe(s)</div></div>"
+            f"<article class='rounded-3xl border border-slate-700/50 bg-slate-900/65 p-5 shadow-lg shadow-slate-950/20 transition hover:-translate-y-0.5 hover:border-sky-400/30 hover:bg-slate-900/85'><div class='entry-head'>{item_icon_html(item.item_id, '..', items)}<div><h3 class='text-base font-semibold text-white'><a class='hover:text-sky-300' href='../{safe_text(item_url(item.item_id))}'>{safe_text(item.display_name)}</a></h3><div class='path mt-2 text-slate-400'>{safe_text(item.item_id)}</div><div class='muted mt-2 text-sm'>{len(item.recipes)} recipe(s)</div></div></div></article>"
             for item in notable
         )
         body = f"""
-        <div class="breadcrumbs"><a href="../index.html">Home</a> / <a href="index.html">Mods</a> / {safe_text(mod.mod_id)}</div>
-        <div class="hero">
+        <div class="breadcrumbs text-sm text-slate-500"><a href="../index.html">Home</a> / <a href="index.html">Mods</a> / {safe_text(mod.mod_id)}</div>
+        <section class="relative overflow-hidden rounded-[32px] border border-slate-700/60 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 px-8 py-8 shadow-2xl shadow-slate-950/40">
+          <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.16),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(34,197,94,0.12),transparent_22%)]"></div>
+          <div class="relative">
           <div class="kicker">Mod Page</div>
-          <div class="entry-head">
+          <div class="entry-head mt-3">
             {icon}
-            <h1>{safe_text(mod.name)}</h1>
+            <div>
+              <h1 class="text-4xl font-black tracking-tight text-white">{safe_text(mod.name)}</h1>
+              <p class="mt-3 max-w-3xl text-base leading-7 text-slate-300">{summary}</p>
+            </div>
           </div>
-          <div class="chips">
+          <div class="mt-6 flex flex-wrap gap-3">
             <span class="chip">Mod ID: {safe_text(mod.mod_id)}</span>
             <span class="chip">Version: {safe_text(mod.version or "unknown")}</span>
             <span class="chip">Entries: {len(mod.item_ids)}</span>
           </div>
-          <p class="muted">{summary}</p>
-          <div class="chips">{''.join(links)}</div>
-          <div class="chips" style="margin-top:10px;">{''.join(info_chips)}</div>
-        </div>
-        <div class="panel">
-          <h2>About This Mod</h2>
-          <p class="muted">{excerpt or description}</p>
-          {"<p class='muted'>Source: <a href='" + safe_text(mod.docs_source_url) + "'>" + safe_text(mod.docs_source_url) + "</a></p>" if mod.docs_source_url else ""}
-        </div>
-        <div class="grid cols-2">
-          <div class="panel">
-            <h2>Documentation Snapshot</h2>
-            {"<ul>" + docs_points + "</ul>" if docs_points else "<p class='muted'>No additional documentation summary could be extracted yet. Use the links above for the official docs or project page.</p>"}
+          <div class="mt-5 flex flex-wrap gap-3">{''.join(links)}</div>
+          <div class="mt-4 flex flex-wrap gap-3">{''.join(info_chips)}</div>
           </div>
-          <div class="panel">
-            <h2>Pack Presence</h2>
-            <p class="muted">{safe_text(mod.name)} contributes {len(mod.item_ids)} cataloged item/block entries to JombiePack.</p>
-            <p class="muted">{safe_text(mod.project_summary or mod.description or "This mod is present in the pack, but its exact gameplay role still needs a fuller pack-specific write-up.")}</p>
+        </section>
+        <section class="mt-8 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+          <div class="rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
+            <h2 class="text-2xl font-bold text-white">About This Mod</h2>
+            <p class="mt-4 text-sm leading-7 text-slate-300">{excerpt or description}</p>
+            {"<p class='mt-4 text-sm text-slate-500'>Source: <a class='text-sky-300 hover:text-sky-200' href='" + safe_text(mod.docs_source_url) + "'>" + safe_text(mod.docs_source_url) + "</a></p>" if mod.docs_source_url else ""}
           </div>
-        </div>
-        <div class="panel">
-          <h2>Notable Entries</h2>
-          <div class="card-grid">
+          <div class="rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
+            <h2 class="text-2xl font-bold text-white">Pack Presence</h2>
+            <p class="mt-4 text-sm leading-7 text-slate-300">{safe_text(mod.name)} contributes {len(mod.item_ids)} cataloged item/block entries to JombiePack.</p>
+            <p class="mt-3 text-sm leading-7 text-slate-400">{safe_text(mod.project_summary or mod.description or "This mod is present in the pack, but its exact gameplay role still needs a fuller pack-specific write-up.")}</p>
+          </div>
+        </section>
+        <section class="mt-8 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <div class="rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
+            <h2 class="text-2xl font-bold text-white">Documentation Snapshot</h2>
+            {"<ul class='mt-4 space-y-3 text-sm leading-7 text-slate-300'>" + docs_points + "</ul>" if docs_points else "<p class='mt-4 text-sm leading-7 text-slate-400'>No additional documentation summary could be extracted yet. Use the links above for the official docs or project page.</p>"}
+          </div>
+          <div class="rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
+            <h2 class="text-2xl font-bold text-white">Notable Entries</h2>
+            <div class="mt-5 grid gap-4 md:grid-cols-2">
             {notable_cards or "<p class='muted'>No high-visibility entries were detected for this mod yet, but it may still affect gameplay through systems, tweaks, or behind-the-scenes integrations.</p>"}
+            </div>
           </div>
-        </div>
-        <div class="panel">
-          <h2>Items and Blocks</h2>
-          <div class="card-grid">
+        </section>
+        <section class="mt-8 rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
+          <div class="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 class="text-2xl font-bold text-white">Items and Blocks</h2>
+              <p class="mt-2 text-sm text-slate-400">Localized entries discovered for this mod from jars, recipes, and pack metadata.</p>
+            </div>
+          </div>
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {''.join(cards) or "<p class='muted'>No localized item entries were found for this mod yet.</p>"}
           </div>
-        </div>
+        </section>
         """
         (mod_dir / f"{slugify(mod.mod_id)}.html").write_text(page(f"{mod.name} - JombiePack", body, rel_root=".."), encoding="utf-8")
 
@@ -1711,28 +1765,34 @@ def build_item_index(items: dict[str, ItemEntry]) -> None:
     for item in items.values():
         icon = item_icon_html(item.item_id, "..", items)
         rows.append(
-            f"<tr data-name='{safe_text(item.display_name)}' data-id='{safe_text(item.item_id)}' data-mod='{safe_text(item.owner_mod_id)}' data-type='{safe_text(item.entry_type)}'>"
-            f"<td><div class='entry-head'>{icon}<a href='{safe_text(item.namespace)}/{safe_text(slugify(item.item_id.split(':', 1)[1]))}.html'>{safe_text(item.display_name)}</a></div></td>"
-            f"<td class='path'>{safe_text(item.item_id)}</td>"
-            f"<td><a href='../mods/{safe_text(slugify(item.owner_mod_id))}.html'>{safe_text(item.owner_mod_id)}</a></td>"
-            f"<td>{len(item.recipes)}</td>"
-            f"<td>{safe_text(item.entry_type)}</td></tr>"
+            f"<tr class='border-b border-slate-800/80 hover:bg-slate-800/40' data-name='{safe_text(item.display_name)}' data-id='{safe_text(item.item_id)}' data-mod='{safe_text(item.owner_mod_id)}' data-type='{safe_text(item.entry_type)}'>"
+            f"<td class='py-4 pr-3'><div class='entry-head'>{icon}<div><a class='font-semibold text-white hover:text-sky-300' href='{safe_text(item.namespace)}/{safe_text(slugify(item.item_id.split(':', 1)[1]))}.html'>{safe_text(item.display_name)}</a><div class='mt-1 text-xs text-slate-500'>{safe_text(item.entry_type.title())}</div></div></div></td>"
+            f"<td class='path py-4 pr-3 text-slate-300'>{safe_text(item.item_id)}</td>"
+            f"<td class='py-4 pr-3'><a class='text-sky-300 hover:text-sky-200' href='../mods/{safe_text(slugify(item.owner_mod_id))}.html'>{safe_text(item.owner_mod_id)}</a></td>"
+            f"<td class='py-4 pr-3 text-slate-300'>{len(item.recipes)}</td>"
+            f"<td class='py-4 text-slate-300'>{safe_text(item.entry_type)}</td></tr>"
         )
     mod_options = "".join(f"<option value='{safe_text(mod_id)}'>{safe_text(mod_id)}</option>" for mod_id in mods)
     body = f"""
-    <div class="breadcrumbs"><a href="../index.html">Home</a> / Items</div>
-    <div class="panel">
-      <h1>Items and Block Entries</h1>
+    <div class="breadcrumbs text-sm text-slate-500"><a href="../index.html">Home</a> / Items</div>
+    <section class="rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
+      <div class="mb-6">
+        <div class="kicker">Browse</div>
+        <h1 class="text-3xl font-black tracking-tight text-white">Items and Blocks</h1>
+        <p class="mt-2 text-sm leading-6 text-slate-400">Filter the full catalog by mod, type, or registry ID to jump straight into item pages and recipe references.</p>
+      </div>
       <div class="filter-row">
         <input id="item-filter-search" class="searchbox" placeholder="Filter by name or registry id">
         <select id="item-filter-mod"><option value="">All mods</option>{mod_options}</select>
         <select id="item-filter-type"><option value="">All types</option><option value="item">Items</option><option value="block">Blocks</option></select>
       </div>
+      <div class="mt-6 overflow-x-auto rounded-2xl border border-slate-800/80 bg-slate-950/40">
       <table class="list-table">
         <thead><tr><th>Name</th><th>Registry ID</th><th>Mod</th><th>Recipes</th><th>Type</th></tr></thead>
         <tbody id="item-table-body">{''.join(rows)}</tbody>
       </table>
-    </div>
+      </div>
+    </section>
     <script src="../assets/search.js"></script>
     <script>setupItemFilters("item-filter-search", "item-filter-mod", "item-filter-type", "item-table-body");</script>
     """
@@ -1749,28 +1809,42 @@ def build_item_pages(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> 
         recipes_html = "".join(render_recipe(recipe, "../..", items) for recipe in item.recipes)
         usages_html = "".join(render_recipe(recipe, "../..", items) for recipe in item.usages)
         icon = item_icon_html(item.item_id, "../..", items, large=True)
+        owner_name = mods[item.owner_mod_id].name if item.owner_mod_id in mods else item.owner_mod_id
         body = f"""
-        <div class="breadcrumbs"><a href="../../index.html">Home</a> / <a href="../index.html">Items</a> / {safe_text(item.item_id)}</div>
-        <div class="hero">
+        <div class="breadcrumbs text-sm text-slate-500"><a href="../../index.html">Home</a> / <a href="../index.html">Items</a> / {safe_text(item.item_id)}</div>
+        <section class="relative overflow-hidden rounded-[32px] border border-slate-700/60 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 px-8 py-8 shadow-2xl shadow-slate-950/40">
+          <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.16),transparent_24%),radial-gradient(circle_at_bottom_left,rgba(249,115,22,0.12),transparent_22%)]"></div>
+          <div class="relative">
           <div class="kicker">{safe_text(item.entry_type)}</div>
-          <div class="entry-head">
+          <div class="entry-head mt-3">
             {icon}
-            <h1>{safe_text(item.display_name)}</h1>
+            <div>
+              <h1 class="text-4xl font-black tracking-tight text-white">{safe_text(item.display_name)}</h1>
+              <p class="mt-3 text-sm leading-7 text-slate-300">Registry entry, recipe page, and usage index for this item or block in JombiePack.</p>
+            </div>
           </div>
-          <div class="chips">
+          <div class="mt-6 flex flex-wrap gap-3">
             <span class="chip path">{safe_text(item.item_id)}</span>
-            <span class="chip">Mod: <a href="../../mods/{safe_text(slugify(item.owner_mod_id))}.html">{safe_text(mods[item.owner_mod_id].name)}</a></span>
+            <span class="chip">Mod: <a href="../../mods/{safe_text(slugify(item.owner_mod_id))}.html">{safe_text(owner_name)}</a></span>
             <span class="chip">Recipe count: {len(item.recipes)}</span>
+            <span class="chip">Used in: {len(item.usages)}</span>
           </div>
-        </div>
-        <div class="panel">
-          <h2>Recipes</h2>
+          </div>
+        </section>
+        <section class="mt-8 rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
+          <div class="mb-5">
+            <h2 class="text-2xl font-bold text-white">Recipes</h2>
+            <p class="mt-2 text-sm text-slate-400">Known recipe outputs that create this entry.</p>
+          </div>
           {recipes_html or "<p class='muted'>No recipe output was found in the scanned data for this entry.</p>"}
-        </div>
-        <div class="panel">
-          <h2>Used In</h2>
+        </section>
+        <section class="mt-8 rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
+          <div class="mb-5">
+            <h2 class="text-2xl font-bold text-white">Used In</h2>
+            <p class="mt-2 text-sm text-slate-400">Recipes and processes that consume this entry as an ingredient.</p>
+          </div>
           {usages_html or "<p class='muted'>No direct recipe usages were found for this entry.</p>"}
-        </div>
+        </section>
         """
         (item_dir / f"{slugify(path)}.html").write_text(page(f"{item.display_name} - JombiePack", body, rel_root="../.."), encoding="utf-8")
 
