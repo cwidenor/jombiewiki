@@ -1203,6 +1203,8 @@ def extract_gui_assets(minecraft_client_jar: Path | None) -> None:
                         with Image.open(full_path) as image:
                             cropped = image.crop((0, 0, 176, 166))
                             cropped.save(crop_dir / Path(asset_path).name)
+                            if Path(asset_path).name == "crafting_table.png":
+                                image.crop((26, 15, 150, 73)).save(crop_dir / "crafting_table_panel.png")
                     except Exception:
                         pass
 
@@ -1440,6 +1442,23 @@ def render_gui_canvas(rel_root: str, asset_path: str, class_name: str) -> str:
     return f'<img class="gui-bg {safe_text(class_name)}" src="{rel_root}/{safe_text(asset_path)}" alt="">'
 
 
+def render_vanilla_gui(
+    rel_root: str,
+    asset_path: str,
+    wrapper_class: str,
+    bg_class: str,
+    slots_html: str,
+    *,
+    scale: float,
+) -> str:
+    return (
+        f"<div class='mc-gui {safe_text(wrapper_class)}' style='--gui-scale:{scale};'>"
+        f"{render_gui_canvas(rel_root, asset_path, bg_class)}"
+        f"{slots_html}"
+        f"</div>"
+    )
+
+
 def recipe_asset_rel(name: str) -> str:
     return f"assets/recipes/{name}"
 
@@ -1620,13 +1639,17 @@ def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEn
         layout_class = "stonecutter-ui"
         station = "Stonecutter"
         inner = (
-            "<div class='jsran-widget jsran-widget-stonecutting'>"
-            "<div class='wiki-stonecutting'>"
-            f"{render_wiki_stack(main_input, rel_root, items, extra_class='wiki-stonecutting-input')}"
-            "<div class='wiki-arrow wiki-arrow-wide' aria-hidden='true'></div>"
-            f"{render_wiki_stack(main_output, rel_root, items, extra_class='wiki-stonecutting-output')}"
-            "</div>"
-            "</div>"
+            render_vanilla_gui(
+                rel_root,
+                "assets/minecraft/textures/gui/cropped/stonecutter.png",
+                "mc-stonecutter",
+                "mc-stonecutter-canvas",
+                (
+                    render_gui_stack(main_input, rel_root, items, extra_class="stonecut-input")
+                    + render_gui_stack(main_output, rel_root, items, extra_class="stonecut-output")
+                ),
+                scale=2.35,
+            )
             + f"{render_recipe_meta(meta_parts)}"
         )
         return workstation_shell(station, layout_class, inner, recipe.recipe_id, title)
@@ -1646,15 +1669,18 @@ def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEn
         return workstation_shell(station, layout_class, inner, recipe.recipe_id, title)
 
     inner = (
-        "<div class='jsran-widget jsran-widget-furnace'>"
-        "<div class='wiki-furnace'>"
-        f"{render_wiki_stack(main_input, rel_root, items, extra_class='wiki-furnace-input')}"
-        "<div class='wiki-furnace-center' aria-hidden='true'><div class='wiki-furnace-fire'></div></div>"
-        "<div class='wiki-arrow wiki-arrow-progress' aria-hidden='true'></div>"
-        f"{render_wiki_stack(main_output, rel_root, items, extra_class='wiki-furnace-output')}"
-        f"{render_wiki_slot('', '', rel_root, items, extra_class='wiki-furnace-fuel empty')}"
-        "</div>"
-        "</div>"
+        render_vanilla_gui(
+            rel_root,
+            "assets/minecraft/textures/gui/cropped/blast_furnace.png" if recipe.recipe_type == "minecraft:blasting" else "assets/minecraft/textures/gui/cropped/furnace.png",
+            "mc-furnace",
+            "mc-furnace-canvas",
+            (
+                render_gui_stack(main_input, rel_root, items, extra_class="furnace-input-slot")
+                + "<div class='gui-slot empty furnace-fuel-slot'></div>"
+                + render_gui_stack(main_output, rel_root, items, extra_class="furnace-output-slot")
+            ),
+            scale=2.2,
+        )
         + (f"<div class='byproduct-row'><div class='ui-subtitle'>Extra Outputs</div>{render_stack_list(extra_outputs, rel_root, items)}</div>" if extra_outputs else "")
         + render_recipe_meta(meta_parts)
     )
@@ -1667,15 +1693,19 @@ def render_smithing_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
     addition = recipe.extra.get("addition")
     output = recipe.outputs[0] if recipe.outputs else None
     inner = (
-        "<div class='jsran-widget jsran-widget-smithing'>"
-        "<div class='wiki-smithing'>"
-        f"{render_wiki_ingredient(normalize_ingredient(template) if template else '', rel_root, items, extra_class='wiki-smithing-template')}"
-        f"{render_wiki_ingredient(normalize_ingredient(base) if base else '', rel_root, items, extra_class='wiki-smithing-base')}"
-        f"{render_wiki_ingredient(normalize_ingredient(addition) if addition else '', rel_root, items, extra_class='wiki-smithing-addition')}"
-        "<div class='wiki-arrow wiki-arrow-wide' aria-hidden='true'></div>"
-        f"{render_wiki_stack(output, rel_root, items, extra_class='wiki-smithing-output')}"
-        "</div>"
-        "</div>"
+        render_vanilla_gui(
+            rel_root,
+            "assets/minecraft/textures/gui/cropped/smithing.png",
+            "mc-smithing",
+            "mc-smithing-canvas",
+            (
+                render_gui_slot(normalize_ingredient(template) if template else "", friendly_ingredient_label(normalize_ingredient(template), items) if template else "", rel_root, items, extra_class="smith-template")
+                + render_gui_slot(normalize_ingredient(base) if base else "", friendly_ingredient_label(normalize_ingredient(base), items) if base else "", rel_root, items, extra_class="smith-base")
+                + render_gui_slot(normalize_ingredient(addition) if addition else "", friendly_ingredient_label(normalize_ingredient(addition), items) if addition else "", rel_root, items, extra_class="smith-addition")
+                + render_gui_stack(output, rel_root, items, extra_class="smith-output")
+            ),
+            scale=2.2,
+        )
     )
     return workstation_shell("Smithing Table", "smithing-ui", inner, recipe.recipe_id, title)
 
@@ -1691,15 +1721,28 @@ def render_crafting_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
             rows.append("" if char == " " else normalize_ingredient(recipe.key.get(char)))
 
     output = recipe.outputs[0] if recipe.outputs else {"item": "unknown", "count": 1}
-    slots = "".join(render_wiki_ingredient(value, rel_root, items) for value in rows)
-    inner = (
-        "<div class='jsran-widget jsran-widget-crafting'>"
-        "<div class='wiki-crafting'>"
-        f"<div class='wiki-craft-grid'>{slots}</div>"
-        "<div class='wiki-arrow wiki-arrow-wide' aria-hidden='true'></div>"
-        f"<div class='wiki-craft-result'>{render_wiki_stack(output, rel_root, items)}</div>"
-        "</div>"
-        "</div>"
+    slots = []
+    for idx, value in enumerate(rows):
+        item_id = value if value else ""
+        slots.append(
+            render_gui_slot(
+                item_id,
+                friendly_ingredient_label(value, items) if value else "",
+                rel_root,
+                items,
+                extra_class=f"craft-panel-slot-{idx}",
+            )
+            if value
+            else f"<div class='gui-slot empty craft-panel-slot-{idx}'></div>"
+        )
+    slots.append(render_gui_stack(output, rel_root, items, extra_class="craft-panel-result"))
+    inner = render_vanilla_gui(
+        rel_root,
+        "assets/minecraft/textures/gui/cropped/crafting_table_panel.png",
+        "mc-crafting-panel",
+        "mc-crafting-panel-canvas",
+        "".join(slots),
+        scale=4.2,
     )
     return workstation_shell("Crafting Table", "crafting-table", inner, recipe.recipe_id, recipe.recipe_type)
 
@@ -1709,15 +1752,30 @@ def render_shapeless_recipe(recipe: Recipe, rel_root: str, items: dict[str, Item
     while len(ingredients) < 9:
         ingredients.append("")
     output = recipe.outputs[0] if recipe.outputs else {"item": "unknown", "count": 1}
-    slots = "".join(render_wiki_ingredient(value, rel_root, items) for value in ingredients)
+    slots = []
+    for idx, value in enumerate(ingredients):
+        item_id = value if value else ""
+        slots.append(
+            render_gui_slot(
+                item_id,
+                friendly_ingredient_label(value, items) if value else "",
+                rel_root,
+                items,
+                extra_class=f"craft-panel-slot-{idx}",
+            )
+            if value
+            else f"<div class='gui-slot empty craft-panel-slot-{idx}'></div>"
+        )
+    slots.append(render_gui_stack(output, rel_root, items, extra_class="craft-panel-result"))
     inner = (
-        "<div class='jsran-widget jsran-widget-crafting'>"
-        "<div class='wiki-crafting'>"
-        f"<div class='wiki-craft-grid'>{slots}</div>"
-        "<div class='wiki-arrow wiki-arrow-wide' aria-hidden='true'></div>"
-        f"<div class='wiki-craft-result'>{render_wiki_stack(output, rel_root, items)}</div>"
-        "</div>"
-        "</div>"
+        render_vanilla_gui(
+            rel_root,
+            "assets/minecraft/textures/gui/cropped/crafting_table_panel.png",
+            "mc-crafting-panel",
+            "mc-crafting-panel-canvas",
+            "".join(slots),
+            scale=4.2,
+        )
         + "<div class='recipe-meta mc-meta-row'><span class='mc-meta-chip'>Shapeless</span></div>"
     )
     return workstation_shell("Crafting Table", "crafting-table", inner, recipe.recipe_id, recipe.recipe_type)

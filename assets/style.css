@@ -507,6 +507,11 @@ h4 {
   height: calc(166px * var(--gui-scale));
 }
 
+.mc-crafting-panel {
+  width: calc(124px * var(--gui-scale));
+  height: calc(58px * var(--gui-scale));
+}
+
 .mc-furnace {
   width: calc(176px * var(--gui-scale));
   height: calc(166px * var(--gui-scale));
@@ -604,6 +609,17 @@ h4 {
 .craft-slot-7 { left: calc(48px * var(--gui-scale)); top: calc(53px * var(--gui-scale)); }
 .craft-slot-8 { left: calc(66px * var(--gui-scale)); top: calc(53px * var(--gui-scale)); }
 .craft-result { left: calc(124px * var(--gui-scale)); top: calc(35px * var(--gui-scale)); }
+
+.craft-panel-slot-0 { left: calc(4px * var(--gui-scale)); top: calc(2px * var(--gui-scale)); }
+.craft-panel-slot-1 { left: calc(22px * var(--gui-scale)); top: calc(2px * var(--gui-scale)); }
+.craft-panel-slot-2 { left: calc(40px * var(--gui-scale)); top: calc(2px * var(--gui-scale)); }
+.craft-panel-slot-3 { left: calc(4px * var(--gui-scale)); top: calc(20px * var(--gui-scale)); }
+.craft-panel-slot-4 { left: calc(22px * var(--gui-scale)); top: calc(20px * var(--gui-scale)); }
+.craft-panel-slot-5 { left: calc(40px * var(--gui-scale)); top: calc(20px * var(--gui-scale)); }
+.craft-panel-slot-6 { left: calc(4px * var(--gui-scale)); top: calc(38px * var(--gui-scale)); }
+.craft-panel-slot-7 { left: calc(22px * var(--gui-scale)); top: calc(38px * var(--gui-scale)); }
+.craft-panel-slot-8 { left: calc(40px * var(--gui-scale)); top: calc(38px * var(--gui-scale)); }
+.craft-panel-result { left: calc(98px * var(--gui-scale)); top: calc(20px * var(--gui-scale)); }
 
 .furnace-input-slot { left: calc(56px * var(--gui-scale)); top: calc(17px * var(--gui-scale)); }
 .furnace-fuel-slot { left: calc(56px * var(--gui-scale)); top: calc(53px * var(--gui-scale)); }
