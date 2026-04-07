@@ -1392,21 +1392,23 @@ def render_recipe_image(
 ) -> str:
     hotspots = hotspots or []
     overlay_html = []
+    scaled_width = width * scale
+    scaled_height = height * scale
     for hotspot in hotspots:
         item_id = str(hotspot.get("item_id", ""))
         if not item_id:
             continue
         href = f"{rel_root}/{item_url(item_id)}"
-        x = float(hotspot["x"])
-        y = float(hotspot["y"])
-        size = float(hotspot.get("size", 18))
+        x = float(hotspot["x"]) * scale
+        y = float(hotspot["y"]) * scale
+        size = float(hotspot.get("size", 18)) * scale
         label = hotspot.get("label", item_id)
         overlay_html.append(
             f"<a class='recipe-hotspot' href='{safe_text(href)}' title='{safe_text(label)}' "
             f"style='left:{x}px;top:{y}px;width:{size}px;height:{size}px;'></a>"
         )
     return (
-        f"<div class='recipe-render' style='--recipe-w:{width}px;--recipe-h:{height}px;--recipe-scale:{scale};'>"
+        f"<div class='recipe-render' style='width:{scaled_width}px;height:{scaled_height}px;'>"
         f"<img class='recipe-render-img' src='{rel_root}/{safe_text(image_rel)}' alt='{safe_text(alt)}'>"
         f"{''.join(overlay_html)}"
         f"</div>"

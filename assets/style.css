@@ -350,8 +350,6 @@ h4 {
 
 .recipe-render {
   position: relative;
-  width: calc(var(--recipe-w) * var(--recipe-scale));
-  height: calc(var(--recipe-h) * var(--recipe-scale));
   margin: 0 auto;
 }
 
@@ -366,8 +364,6 @@ h4 {
 .recipe-hotspot {
   position: absolute;
   display: block;
-  transform: scale(var(--recipe-scale));
-  transform-origin: top left;
   border-radius: 2px;
   text-decoration: none;
   z-index: 2;
