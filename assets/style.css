@@ -862,12 +862,20 @@ h4 {
   display: grid;
   gap: 6px;
   justify-items: center;
+  align-content: start;
 }
 
 .stack-list {
   display: grid;
   gap: 6px;
   justify-items: center;
+}
+
+.wiki-stack-list {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  align-content: start;
 }
 
 .single-result {
@@ -925,6 +933,241 @@ h4 {
   margin-top: 10px;
   color: var(--muted);
   font-size: 0.92rem;
+}
+
+.jsran-widget {
+  display: inline-flex;
+  margin: 4px auto 0;
+  padding: 14px 16px;
+  border: 1px solid #5f6670;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.14), rgba(0,0,0,0.04)),
+    linear-gradient(180deg, #c9ced6, #9fa8b4);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    inset 0 -1px 0 rgba(0,0,0,0.18),
+    0 12px 24px rgba(2, 6, 23, 0.22);
+}
+
+.jsran-widget-create,
+.jsran-widget-generic {
+  width: 100%;
+  justify-content: center;
+}
+
+.wiki-crafting,
+.wiki-stonecutting,
+.wiki-smithing {
+  display: grid;
+  align-items: center;
+}
+
+.wiki-crafting {
+  grid-template-columns: auto 42px 72px;
+  gap: 16px;
+}
+
+.wiki-stonecutting {
+  grid-template-columns: 72px 42px 72px;
+  gap: 16px;
+}
+
+.wiki-smithing {
+  grid-template-columns: repeat(3, 72px) 42px 72px;
+  gap: 12px;
+}
+
+.wiki-furnace {
+  display: grid;
+  grid-template-columns: 72px 26px 42px 72px;
+  grid-template-rows: 72px 24px 72px;
+  gap: 10px 12px;
+  align-items: center;
+}
+
+.wiki-generic {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px minmax(180px, auto);
+  gap: 16px;
+  align-items: center;
+  width: 100%;
+}
+
+.wiki-generic-section {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.wiki-craft-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 72px);
+  gap: 6px;
+}
+
+.wiki-craft-result,
+.wiki-stonecutting-output,
+.wiki-furnace-output {
+  display: flex;
+  justify-content: center;
+}
+
+.wiki-slot {
+  position: relative;
+  display: flex;
+  width: 72px;
+  height: 72px;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: inherit;
+  background:
+    linear-gradient(180deg, rgba(0,0,0,0.12), rgba(255,255,255,0.05)),
+    #8b8b8b;
+  border-top: 3px solid #373737;
+  border-left: 3px solid #373737;
+  border-right: 3px solid #ffffff;
+  border-bottom: 3px solid #ffffff;
+  box-shadow:
+    inset 2px 2px 0 rgba(0,0,0,0.18),
+    inset -2px -2px 0 rgba(255,255,255,0.12);
+}
+
+.wiki-slot:hover {
+  text-decoration: none;
+  filter: brightness(1.04);
+}
+
+.wiki-slot.empty {
+  opacity: 0.55;
+}
+
+.wiki-slot-inner {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.wiki-slot .icon {
+  width: 42px;
+  height: 42px;
+  max-width: 42px;
+  max-height: 42px;
+  flex: none;
+  image-rendering: pixelated;
+}
+
+.generic-output {
+  color: #18212c;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.wiki-slot-fallback {
+  max-width: 90%;
+  font-size: 0.62rem;
+  line-height: 1.1;
+  text-align: center;
+  color: #202020;
+}
+
+.wiki-slot-count,
+.wiki-slot-chance {
+  position: absolute;
+  font-size: 0.82rem;
+  line-height: 1;
+  font-weight: 700;
+  color: #fff;
+  text-shadow:
+    -1px 0 #000,
+    0 1px #000,
+    1px 0 #000,
+    0 -1px #000;
+}
+
+.wiki-slot-count {
+  right: 5px;
+  bottom: 4px;
+}
+
+.wiki-slot-chance {
+  left: 4px;
+  top: 4px;
+  font-size: 0.68rem;
+}
+
+.wiki-arrow {
+  position: relative;
+  width: 42px;
+  height: 20px;
+}
+
+.wiki-arrow::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 12px;
+  top: 6px;
+  height: 8px;
+  background: #7a7a7a;
+  border-top: 2px solid #d8d8d8;
+  border-left: 2px solid #d8d8d8;
+  border-bottom: 2px solid #5a5a5a;
+}
+
+.wiki-arrow::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 0;
+  width: 16px;
+  height: 16px;
+  background: #7a7a7a;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  border-top: 2px solid #d8d8d8;
+  border-right: 2px solid #5a5a5a;
+  border-bottom: 2px solid #5a5a5a;
+}
+
+.wiki-arrow-progress::before {
+  right: 8px;
+}
+
+.wiki-furnace-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.wiki-furnace-fire {
+  width: 18px;
+  height: 24px;
+  background:
+    radial-gradient(circle at 50% 70%, #ffd36a 0 30%, transparent 31%),
+    radial-gradient(circle at 35% 45%, #ff8f3c 0 36%, transparent 37%),
+    radial-gradient(circle at 65% 32%, #ffb14e 0 28%, transparent 29%);
+  clip-path: polygon(50% 0%, 78% 22%, 92% 52%, 74% 100%, 26% 100%, 8% 52%, 22% 22%);
+}
+
+.wiki-furnace-input { grid-column: 1; grid-row: 1; }
+.wiki-furnace-output { grid-column: 4; grid-row: 1; }
+.wiki-furnace-fuel { grid-column: 1; grid-row: 3; }
+.wiki-arrow-progress { grid-column: 3; grid-row: 1; align-self: center; }
+
+@media (max-width: 780px) {
+  .wiki-crafting,
+  .wiki-stonecutting,
+  .wiki-smithing,
+  .wiki-furnace {
+    transform: scale(0.88);
+    transform-origin: top center;
+  }
 }
 
 .mc-meta-row {

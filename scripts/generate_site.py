@@ -1302,15 +1302,15 @@ def render_stack_label(stack: dict[str, Any]) -> str:
 def render_stack_list(stacks: list[dict[str, Any]], rel_root: str, items: dict[str, ItemEntry]) -> str:
     if not stacks:
         return "<div class='muted'>None</div>"
-    return "<div class='stack-list'>" + "".join(
-        render_slot(friendly_stack_label(stack, items), rel_root, items, str(stack.get("item", ""))) for stack in stacks
+    return "<div class='wiki-stack-list'>" + "".join(
+        render_wiki_stack(stack, rel_root, items) for stack in stacks
     ) + "</div>"
 
 
 def render_single_stack(stack: dict[str, Any] | None, rel_root: str, items: dict[str, ItemEntry]) -> str:
     if not stack:
-        return render_slot("", rel_root, items)
-    return render_slot(friendly_stack_label(stack, items), rel_root, items, str(stack.get("item", "")))
+        return render_wiki_slot("", "", rel_root, items)
+    return render_wiki_stack(stack, rel_root, items)
 
 
 def render_gui_slot(
@@ -1360,6 +1360,74 @@ def render_gui_stack(
         except Exception:
             badge = ""
     return render_gui_slot(str(stack.get("item", "")), label, rel_root, items, extra_badge=badge, extra_class=extra_class)
+
+
+def render_wiki_slot(
+    item_id: str,
+    label: str,
+    rel_root: str,
+    items: dict[str, ItemEntry],
+    *,
+    count: int = 1,
+    extra_badge: str = "",
+    extra_class: str = "",
+) -> str:
+    classes = "wiki-slot"
+    if extra_class:
+        classes += f" {extra_class}"
+    title_attr = safe_text(label or item_id or "Empty")
+    if not item_id:
+        return f'<div class="{classes} empty" title="{title_attr}"></div>'
+    href = item_ref_href(item_id, rel_root, items) if item_id and not item_id.startswith("#") else ""
+    icon = item_icon_html(item_id, rel_root, items) if item_id and not item_id.startswith("#") else ""
+    fallback = ""
+    if not icon:
+        short = (label or item_id or "?")[:10]
+        fallback = f"<span class='wiki-slot-fallback'>{safe_text(short)}</span>"
+    count_badge = f"<span class='wiki-slot-count'>{count}</span>" if count > 1 else ""
+    chance_badge = f"<span class='wiki-slot-chance'>{safe_text(extra_badge)}</span>" if extra_badge else ""
+    inner = f"<span class='wiki-slot-inner'>{icon}{fallback}{count_badge}{chance_badge}</span>"
+    if href:
+        return f'<a class="{classes}" href="{safe_text(href)}" title="{title_attr}">{inner}</a>'
+    return f'<div class="{classes}" title="{title_attr}">{inner}</div>'
+
+
+def render_wiki_ingredient(value: str, rel_root: str, items: dict[str, ItemEntry], *, extra_class: str = "") -> str:
+    if not value:
+        return render_wiki_slot("", "", rel_root, items, extra_class=extra_class)
+    return render_wiki_slot(
+        value,
+        friendly_ingredient_label(value, items),
+        rel_root,
+        items,
+        extra_class=extra_class,
+    )
+
+
+def render_wiki_stack(
+    stack: dict[str, Any] | None,
+    rel_root: str,
+    items: dict[str, ItemEntry],
+    *,
+    extra_class: str = "",
+) -> str:
+    if not stack:
+        return render_wiki_slot("", "", rel_root, items, extra_class=extra_class)
+    badge = ""
+    if "chance" in stack:
+        try:
+            badge = f"{float(stack['chance']) * 100:.0f}%"
+        except Exception:
+            badge = ""
+    return render_wiki_slot(
+        str(stack.get("item", "")),
+        friendly_stack_label(stack, items),
+        rel_root,
+        items,
+        count=int(stack.get("count", 1)),
+        extra_badge=badge,
+        extra_class=extra_class,
+    )
 
 
 def render_gui_canvas(rel_root: str, asset_path: str, class_name: str) -> str:
@@ -1551,13 +1619,14 @@ def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEn
     if recipe.recipe_type == "minecraft:stonecutting":
         layout_class = "stonecutter-ui"
         station = "Stonecutter"
-        image_rel = compose_recipe_image(recipe, items, layout="stonecutter", ingredients=[main_input] if main_input else [], outputs=[main_output] if main_output else [])
-        hotspots = [h for h in [
-            hotspot(str(main_input.get("item", "")) if main_input else None, 20, 33, friendly_stack_label(main_input, items) if main_input else ""),
-            hotspot(str(main_output.get("item", "")) if main_output else None, 143, 33, friendly_stack_label(main_output, items) if main_output else ""),
-        ] if h]
         inner = (
-            (render_recipe_image(image_rel, rel_root, alt="Stonecutter recipe", width=176, height=166, scale=2.85, hotspots=hotspots) if image_rel else "")
+            "<div class='jsran-widget jsran-widget-stonecutting'>"
+            "<div class='wiki-stonecutting'>"
+            f"{render_wiki_stack(main_input, rel_root, items, extra_class='wiki-stonecutting-input')}"
+            "<div class='wiki-arrow wiki-arrow-wide' aria-hidden='true'></div>"
+            f"{render_wiki_stack(main_output, rel_root, items, extra_class='wiki-stonecutting-output')}"
+            "</div>"
+            "</div>"
             + f"{render_recipe_meta(meta_parts)}"
         )
         return workstation_shell(station, layout_class, inner, recipe.recipe_id, title)
@@ -1565,29 +1634,27 @@ def render_process_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEn
         layout_class = "create-ui"
         station = title
         inner = (
-            "<div class='ui-title-row'><div class='ui-title left'>Inputs</div><div class='ui-title right'>Outputs</div></div>"
+            "<div class='jsran-widget jsran-widget-create'>"
             "<div class='create-screen'>"
             f"<div class='result-stack'>{render_stack_list(ingredient_stacks, rel_root, items)}</div>"
             "<div class='create-center'><div class='create-cog' aria-hidden='true'></div><div class='progress-bar'></div></div>"
             f"<div class='result-stack'>{render_stack_list(recipe.outputs, rel_root, items)}</div>"
             "</div>"
+            "</div>"
             f"{render_recipe_meta(meta_parts)}"
         )
         return workstation_shell(station, layout_class, inner, recipe.recipe_id, title)
 
-    image_rel = compose_recipe_image(
-        recipe,
-        items,
-        layout='blast' if recipe.recipe_type == 'minecraft:blasting' else 'furnace',
-        ingredients=[main_input] if main_input else [],
-        outputs=[main_output] if main_output else [],
-    )
-    hotspots = [h for h in [
-        hotspot(str(main_input.get("item", "")) if main_input else None, 56, 17, friendly_stack_label(main_input, items) if main_input else ""),
-        hotspot(str(main_output.get("item", "")) if main_output else None, 116, 35, friendly_stack_label(main_output, items) if main_output else ""),
-    ] if h]
     inner = (
-        (render_recipe_image(image_rel, rel_root, alt="Processing recipe", width=176, height=166, scale=2.75, hotspots=hotspots) if image_rel else "")
+        "<div class='jsran-widget jsran-widget-furnace'>"
+        "<div class='wiki-furnace'>"
+        f"{render_wiki_stack(main_input, rel_root, items, extra_class='wiki-furnace-input')}"
+        "<div class='wiki-furnace-center' aria-hidden='true'><div class='wiki-furnace-fire'></div></div>"
+        "<div class='wiki-arrow wiki-arrow-progress' aria-hidden='true'></div>"
+        f"{render_wiki_stack(main_output, rel_root, items, extra_class='wiki-furnace-output')}"
+        f"{render_wiki_slot('', '', rel_root, items, extra_class='wiki-furnace-fuel empty')}"
+        "</div>"
+        "</div>"
         + (f"<div class='byproduct-row'><div class='ui-subtitle'>Extra Outputs</div>{render_stack_list(extra_outputs, rel_root, items)}</div>" if extra_outputs else "")
         + render_recipe_meta(meta_parts)
     )
@@ -1599,24 +1666,17 @@ def render_smithing_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
     base = recipe.extra.get("base")
     addition = recipe.extra.get("addition")
     output = recipe.outputs[0] if recipe.outputs else None
-    image_rel = compose_recipe_image(
-        recipe,
-        items,
-        layout="smithing",
-        ingredients=[
-            {"item": normalize_ingredient(template), "count": 1} if template else None,
-            {"item": normalize_ingredient(base), "count": 1} if base else None,
-            {"item": normalize_ingredient(addition), "count": 1} if addition else None,
-        ],
-        outputs=[output] if output else [],
+    inner = (
+        "<div class='jsran-widget jsran-widget-smithing'>"
+        "<div class='wiki-smithing'>"
+        f"{render_wiki_ingredient(normalize_ingredient(template) if template else '', rel_root, items, extra_class='wiki-smithing-template')}"
+        f"{render_wiki_ingredient(normalize_ingredient(base) if base else '', rel_root, items, extra_class='wiki-smithing-base')}"
+        f"{render_wiki_ingredient(normalize_ingredient(addition) if addition else '', rel_root, items, extra_class='wiki-smithing-addition')}"
+        "<div class='wiki-arrow wiki-arrow-wide' aria-hidden='true'></div>"
+        f"{render_wiki_stack(output, rel_root, items, extra_class='wiki-smithing-output')}"
+        "</div>"
+        "</div>"
     )
-    hotspots = [h for h in [
-        hotspot(normalize_ingredient(template) if template else None, 8, 48, friendly_ingredient_label(normalize_ingredient(template), items) if template else ""),
-        hotspot(normalize_ingredient(base) if base else None, 26, 48, friendly_ingredient_label(normalize_ingredient(base), items) if base else ""),
-        hotspot(normalize_ingredient(addition) if addition else None, 44, 48, friendly_ingredient_label(normalize_ingredient(addition), items) if addition else ""),
-        hotspot(str(output.get("item", "")) if output else None, 98, 48, friendly_stack_label(output, items) if output else ""),
-    ] if h]
-    inner = render_recipe_image(image_rel, rel_root, alt="Smithing recipe", width=176, height=166, scale=2.75, hotspots=hotspots) if image_rel else ""
     return workstation_shell("Smithing Table", "smithing-ui", inner, recipe.recipe_id, title)
 
 
@@ -1631,27 +1691,16 @@ def render_crafting_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemE
             rows.append("" if char == " " else normalize_ingredient(recipe.key.get(char)))
 
     output = recipe.outputs[0] if recipe.outputs else {"item": "unknown", "count": 1}
-    slots = []
-    for idx, value in enumerate(rows):
-        item_id = value if value.startswith("#") or ":" in value else ""
-        slots.append(render_gui_slot(item_id, friendly_ingredient_label(value, items), rel_root, items, extra_class=f"craft-slot craft-slot-{idx}") if value else f"<div class='gui-slot empty craft-slot craft-slot-{idx}'></div>")
-    image_rel = compose_recipe_image(
-        recipe,
-        items,
-        layout="crafting",
-        ingredients=[{"item": value, "count": 1} if value else None for value in rows],
-        outputs=[output],
+    slots = "".join(render_wiki_ingredient(value, rel_root, items) for value in rows)
+    inner = (
+        "<div class='jsran-widget jsran-widget-crafting'>"
+        "<div class='wiki-crafting'>"
+        f"<div class='wiki-craft-grid'>{slots}</div>"
+        "<div class='wiki-arrow wiki-arrow-wide' aria-hidden='true'></div>"
+        f"<div class='wiki-craft-result'>{render_wiki_stack(output, rel_root, items)}</div>"
+        "</div>"
+        "</div>"
     )
-    hotspots = []
-    craft_positions = [(4, 2), (22, 2), (40, 2), (4, 20), (22, 20), (40, 20), (4, 38), (22, 38), (40, 38)]
-    for value, (x, y) in zip(rows, craft_positions):
-        if value and not value.startswith("#"):
-            hotspots.append(hotspot(value, x, y, friendly_ingredient_label(value, items)))
-    hotspots = [h for h in hotspots if h]
-    output_hotspot = hotspot(str(output.get("item", "")), 98, 20, friendly_stack_label(output, items))
-    if output_hotspot:
-        hotspots.append(output_hotspot)
-    inner = render_recipe_image(image_rel, rel_root, alt="Crafting recipe", width=124, height=58, scale=5.0, hotspots=hotspots) if image_rel else ""
     return workstation_shell("Crafting Table", "crafting-table", inner, recipe.recipe_id, recipe.recipe_type)
 
 
@@ -1660,28 +1709,15 @@ def render_shapeless_recipe(recipe: Recipe, rel_root: str, items: dict[str, Item
     while len(ingredients) < 9:
         ingredients.append("")
     output = recipe.outputs[0] if recipe.outputs else {"item": "unknown", "count": 1}
-    slots = []
-    for idx, value in enumerate(ingredients):
-        item_id = value if value.startswith("#") or ":" in value else ""
-        slots.append(render_gui_slot(item_id, friendly_ingredient_label(value, items), rel_root, items, extra_class=f"craft-slot craft-slot-{idx}") if value else f"<div class='gui-slot empty craft-slot craft-slot-{idx}'></div>")
-    image_rel = compose_recipe_image(
-        recipe,
-        items,
-        layout="crafting",
-        ingredients=[{"item": value, "count": 1} if value else None for value in ingredients],
-        outputs=[output],
-    )
-    hotspots = []
-    craft_positions = [(4, 2), (22, 2), (40, 2), (4, 20), (22, 20), (40, 20), (4, 38), (22, 38), (40, 38)]
-    for value, (x, y) in zip(ingredients, craft_positions):
-        if value and not value.startswith("#"):
-            hotspots.append(hotspot(value, x, y, friendly_ingredient_label(value, items)))
-    hotspots = [h for h in hotspots if h]
-    output_hotspot = hotspot(str(output.get("item", "")), 98, 20, friendly_stack_label(output, items))
-    if output_hotspot:
-        hotspots.append(output_hotspot)
+    slots = "".join(render_wiki_ingredient(value, rel_root, items) for value in ingredients)
     inner = (
-        (render_recipe_image(image_rel, rel_root, alt="Crafting recipe", width=124, height=58, scale=5.0, hotspots=hotspots) if image_rel else "")
+        "<div class='jsran-widget jsran-widget-crafting'>"
+        "<div class='wiki-crafting'>"
+        f"<div class='wiki-craft-grid'>{slots}</div>"
+        "<div class='wiki-arrow wiki-arrow-wide' aria-hidden='true'></div>"
+        f"<div class='wiki-craft-result'>{render_wiki_stack(output, rel_root, items)}</div>"
+        "</div>"
+        "</div>"
         + "<div class='recipe-meta mc-meta-row'><span class='mc-meta-chip'>Shapeless</span></div>"
     )
     return workstation_shell("Crafting Table", "crafting-table", inner, recipe.recipe_id, recipe.recipe_type)
@@ -1693,14 +1729,30 @@ def render_generic_recipe(recipe: Recipe) -> str:
     ingredient_html = "".join(f'<span class="chip">{safe_text(value)}</span>' for value in ingredients if value)
     extra = ", ".join(f"{key}={value}" for key, value in recipe.extra.items())
     return f"""
-    <div class="recipe-card">
+    <div class="recipe-card workstation">
+      <div class="workstation-badge">Recipe</div>
       <div class="recipe-header">
         <strong>{safe_text(recipe.recipe_type)}</strong>
         <span class="muted path">{safe_text(recipe.recipe_id)}</span>
       </div>
-      <div><strong>Output:</strong> {safe_text(outputs)}</div>
-      <div class="ingredient-list">{ingredient_html or "<span class='muted'>No ingredient data parsed.</span>"}</div>
-      <div class="recipe-meta">{safe_text(extra)}</div>
+      <div class="workstation-frame frame-create-ui">
+        <div class="crafting-layout create-ui">
+          <div class="jsran-widget jsran-widget-generic">
+            <div class="wiki-generic">
+              <div class="wiki-generic-section">
+                <div class="ui-title left">Ingredients</div>
+                <div class="ingredient-list">{ingredient_html or "<span class='muted'>No ingredient data parsed.</span>"}</div>
+              </div>
+              <div class="wiki-arrow wiki-arrow-wide" aria-hidden="true"></div>
+              <div class="wiki-generic-section">
+                <div class="ui-title right">Outputs</div>
+                <div class="generic-output">{safe_text(outputs)}</div>
+              </div>
+            </div>
+          </div>
+          <div class="recipe-meta">{safe_text(extra)}</div>
+        </div>
+      </div>
     </div>
     """
 
