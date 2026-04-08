@@ -25,6 +25,7 @@ OVERRIDE_CACHE = CACHE_DIR / "override_jars"
 SITE_DIR = ROOT / "site"
 ASSETS_DIR = ROOT / "assets"
 MINECRAFT_CACHE = CACHE_DIR / "minecraft"
+RUNTIME_DATA_DIR = Path(os.environ.get("JOMBIEPACK_RUNTIME_DATA_DIR", str(CACHE_DIR / "runtime_dump")))
 
 
 @dataclass
@@ -50,6 +51,7 @@ class ItemEntry:
     icon_path: str = ""
     recipes: list[Recipe] = field(default_factory=list)
     usages: list[Recipe] = field(default_factory=list)
+    runtime_properties: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -105,6 +107,47 @@ def normalize_display_name(item_id: str, raw_value: str) -> str:
     if "%s" in value or "%1$s" in value or "%2$s" in value:
         return fallback_display_name(item_id)
     return value
+
+
+def load_runtime_properties() -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    items_path = RUNTIME_DATA_DIR / "items.json"
+    blocks_path = RUNTIME_DATA_DIR / "blocks.json"
+    item_props: dict[str, dict[str, Any]] = {}
+    block_props: dict[str, dict[str, Any]] = {}
+    if items_path.exists():
+        try:
+            raw = json.loads(items_path.read_text(encoding="utf-8"))
+            if isinstance(raw, list):
+                for entry in raw:
+                    if isinstance(entry, dict) and entry.get("id"):
+                        item_props[str(entry["id"])] = entry
+        except Exception:
+            pass
+    if blocks_path.exists():
+        try:
+            raw = json.loads(blocks_path.read_text(encoding="utf-8"))
+            if isinstance(raw, list):
+                for entry in raw:
+                    if isinstance(entry, dict) and entry.get("id"):
+                        block_props[str(entry["id"])] = entry
+        except Exception:
+            pass
+    return item_props, block_props
+
+
+def apply_runtime_properties(items: dict[str, ItemEntry]) -> None:
+    item_props, block_props = load_runtime_properties()
+    for item in items.values():
+        merged: dict[str, Any] = {}
+        if item.item_id in item_props:
+            merged.update(item_props[item.item_id])
+        block_id = str(merged.get("block_id", "")).strip()
+        if block_id and block_id in block_props:
+            merged.update(block_props[block_id])
+        elif item.item_id in block_props:
+            merged.update(block_props[item.item_id])
+        if merged:
+            item.runtime_properties = merged
 
 
 def friendly_tag_name(tag: str) -> str:
@@ -1831,6 +1874,69 @@ def render_recipe(recipe: Recipe, rel_root: str, items: dict[str, ItemEntry]) ->
     return render_generic_recipe(recipe)
 
 
+def format_property_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+    if isinstance(value, float):
+        if value.is_integer():
+            return str(int(value))
+        return f"{value:.2f}".rstrip("0").rstrip(".")
+    if isinstance(value, dict):
+        return ", ".join(f"{key}: {format_property_value(val)}" for key, val in value.items() if val not in ("", None))
+    if isinstance(value, list):
+        return ", ".join(format_property_value(item) for item in value)
+    return str(value)
+
+
+def render_property_section(item: ItemEntry) -> str:
+    props = item.runtime_properties
+    if not props:
+        return ""
+    preferred_order = [
+        ("max_stack_size", "Max Stack Size"),
+        ("max_damage", "Durability"),
+        ("damageable", "Damageable"),
+        ("repairable", "Repairable"),
+        ("enchantable", "Enchantable"),
+        ("rarity", "Rarity"),
+        ("rarity_color", "Rarity Color"),
+        ("destroy_time", "Hardness"),
+        ("explosion_resistance", "Blast Resistance"),
+        ("light_emission", "Light Emission"),
+        ("requires_correct_tool_for_drops", "Needs Correct Tool"),
+        ("friction", "Friction"),
+        ("speed_factor", "Speed Factor"),
+        ("jump_factor", "Jump Factor"),
+        ("dynamic_shape", "Dynamic Shape"),
+        ("random_ticks", "Random Ticks"),
+        ("air", "Air"),
+        ("occludes", "Occludes"),
+        ("food", "Food"),
+    ]
+    rows = []
+    for key, label in preferred_order:
+        value = props.get(key)
+        if value in ("", None):
+            continue
+        rows.append(
+            f"<div class='rounded-2xl border border-slate-800/80 bg-slate-950/45 px-4 py-3'>"
+            f"<div class='text-xs font-semibold uppercase tracking-[0.2em] text-slate-500'>{safe_text(label)}</div>"
+            f"<div class='mt-2 text-sm text-slate-200'>{safe_text(format_property_value(value))}</div>"
+            f"</div>"
+        )
+    if not rows:
+        return ""
+    return (
+        "<section class='mt-8 rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur'>"
+        "<div class='mb-5'>"
+        "<h2 class='text-2xl font-bold text-white'>Properties</h2>"
+        "<p class='mt-2 text-sm text-slate-400'>Runtime properties exported from a live JombiePack instance.</p>"
+        "</div>"
+        f"<div class='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>{''.join(rows)}</div>"
+        "</section>"
+    )
+
+
 def build_home(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> None:
     featured = [
         "minecolonies",
@@ -2118,6 +2224,7 @@ def build_item_pages(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> 
         usages_html = "".join(render_recipe(recipe, "../..", items) for recipe in item.usages)
         icon = item_icon_html(item.item_id, "../..", items, large=True)
         owner_name = mods[item.owner_mod_id].name if item.owner_mod_id in mods else item.owner_mod_id
+        properties_html = render_property_section(item)
         body = f"""
         <div class="breadcrumbs text-sm text-slate-500"><a href="../../index.html">Home</a> / <a href="../index.html">Items</a> / {safe_text(item.item_id)}</div>
         <section class="relative overflow-hidden rounded-[32px] border border-slate-700/60 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 px-8 py-8 shadow-2xl shadow-slate-950/40">
@@ -2146,6 +2253,7 @@ def build_item_pages(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> 
           </div>
           {recipes_html or "<p class='muted'>No recipe output was found in the scanned data for this entry.</p>"}
         </section>
+        {properties_html}
         <section class="mt-8 rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
           <div class="mb-5">
             <h2 class="text-2xl font-bold text-white">Used In</h2>
@@ -2185,6 +2293,7 @@ def main() -> None:
     extract_gui_assets(minecraft_client_jar)
     extract_mod_icons(mods)
     extract_item_icons(jar_paths, items, minecraft_client_jar)
+    apply_runtime_properties(items)
     enrich_mod_docs(mods)
     build_home(mods, items)
     build_mod_index(mods)
