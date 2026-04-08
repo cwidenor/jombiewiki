@@ -1892,14 +1892,76 @@ def render_property_section(item: ItemEntry) -> str:
     props = item.runtime_properties
     if not props:
         return ""
+    normalized_props = dict(props)
+    if normalized_props.get("armor_defense") not in ("", None):
+        normalized_props["armor"] = normalized_props["armor_defense"]
+    if normalized_props.get("armor_toughness") not in ("", None):
+        normalized_props["armor_toughness"] = normalized_props["armor_toughness"]
+    if normalized_props.get("armor_knockback_resistance") not in ("", None):
+        normalized_props["knockback_resistance"] = normalized_props["armor_knockback_resistance"]
+
+    attribute_modifiers = normalized_props.get("attribute_modifiers")
+    if isinstance(attribute_modifiers, list):
+        attr_totals: dict[str, float] = {}
+        for modifier in attribute_modifiers:
+            if not isinstance(modifier, dict):
+                continue
+            attribute = modifier.get("attribute")
+            amount = modifier.get("amount")
+            operation = modifier.get("operation")
+            if attribute in ("", None) or amount in ("", None) or operation != "add_value":
+                continue
+            try:
+                numeric_amount = float(amount)
+            except (TypeError, ValueError):
+                continue
+            attr_totals[attribute] = attr_totals.get(attribute, 0.0) + numeric_amount
+        raw_to_display = {
+            "minecraft:generic.attack_damage": "attack_damage",
+            "minecraft:generic.attack_speed": "attack_speed",
+            "minecraft:generic.attack_knockback": "attack_knockback",
+            "minecraft:generic.armor": "armor",
+            "minecraft:generic.armor_toughness": "armor_toughness",
+            "minecraft:generic.knockback_resistance": "knockback_resistance",
+        }
+        for raw_key, display_key in raw_to_display.items():
+            if raw_key in attr_totals:
+                normalized_props[display_key] = attr_totals[raw_key]
+
+    combat_stats = normalized_props.get("combat_stats")
+    if isinstance(combat_stats, dict):
+        for key in ("attack_damage", "attack_speed", "attack_knockback", "armor", "armor_toughness", "knockback_resistance"):
+            if key not in normalized_props and combat_stats.get(key) not in ("", None):
+                normalized_props[key] = combat_stats[key]
     preferred_order = [
         ("max_stack_size", "Max Stack Size"),
         ("max_damage", "Durability"),
         ("damageable", "Damageable"),
         ("repairable", "Repairable"),
         ("enchantable", "Enchantable"),
+        ("enchantment_value", "Enchantment Value"),
+        ("fire_resistant", "Fire Resistant"),
         ("rarity", "Rarity"),
         ("rarity_color", "Rarity Color"),
+        ("equipment_slot", "Equipment Slot"),
+        ("attack_damage", "Attack Damage"),
+        ("attack_speed", "Attack Speed"),
+        ("attack_knockback", "Attack Knockback"),
+        ("armor", "Armor"),
+        ("armor_toughness", "Armor Toughness"),
+        ("knockback_resistance", "Knockback Resistance"),
+        ("armor_type", "Armor Type"),
+        ("armor_material", "Armor Material"),
+        ("armor_defense", "Armor Defense"),
+        ("armor_knockback_resistance", "Armor Knockback Resistance"),
+        ("tier_uses", "Tier Durability"),
+        ("tier_speed", "Tier Mining Speed"),
+        ("tier_attack_damage_bonus", "Tier Attack Damage Bonus"),
+        ("tier_enchantment_value", "Tier Enchantment Value"),
+        ("tool_default_mining_speed", "Tool Mining Speed"),
+        ("tool_damage_per_block", "Tool Damage Per Block"),
+        ("tool_rule_count", "Tool Rule Count"),
+        ("default_projectile_range", "Projectile Range"),
         ("destroy_time", "Hardness"),
         ("explosion_resistance", "Blast Resistance"),
         ("light_emission", "Light Emission"),
@@ -1912,10 +1974,12 @@ def render_property_section(item: ItemEntry) -> str:
         ("air", "Air"),
         ("occludes", "Occludes"),
         ("food", "Food"),
+        ("attribute_modifiers", "Attribute Modifiers"),
+        ("tool", "Tool"),
     ]
     rows = []
     for key, label in preferred_order:
-        value = props.get(key)
+        value = normalized_props.get(key)
         if value in ("", None):
             continue
         rows.append(
