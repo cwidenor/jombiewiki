@@ -25,7 +25,7 @@ OVERRIDE_CACHE = CACHE_DIR / "override_jars"
 SITE_DIR = ROOT / "site"
 ASSETS_DIR = ROOT / "assets"
 MINECRAFT_CACHE = CACHE_DIR / "minecraft"
-RUNTIME_DATA_DIR = Path(os.environ.get("JOMBIEPACK_RUNTIME_DATA_DIR", str(CACHE_DIR / "runtime_dump")))
+RUNTIME_DATA_DIR = Path(os.environ.get("JOMBIEPACK_RUNTIME_DATA_DIR", str(ROOT / "runtime-data")))
 
 
 @dataclass

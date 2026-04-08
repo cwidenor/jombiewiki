@@ -25,6 +25,7 @@ This repo is meant to be pushed to GitHub and published with **GitHub Pages** in
 - `scripts/generate_site.py` reads the `.mrpack`, downloaded jars, and bundled override jars
 - `site/` contains the generated static output
 - `cache/override_jars/` stores extracted override jars from the `.mrpack`
+- `runtime-data/` stores exported live item and block properties for the wiki
 
 ## Regenerating
 
@@ -33,6 +34,16 @@ From this folder:
 ```powershell
 python .\scripts\generate_site.py
 ```
+
+If you have exported live runtime data from the helper extractor mod, put:
+
+- `items.json`
+- `blocks.json`
+- `manifest.json`
+
+inside `runtime-data/`.
+
+The generator will automatically add a `Properties` section to item and block pages when those files are present.
 
 ## Pack Source
 
@@ -72,4 +83,5 @@ This repo includes a GitHub Actions workflow that:
 
 - `site/` is generated output
 - `cache/` is ignored and can be rebuilt
+- `runtime-data/` should be committed if you want GitHub Pages builds to include live property data
 - `.github/workflows/deploy.yml` contains the deploy workflow
