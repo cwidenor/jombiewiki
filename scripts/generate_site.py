@@ -2246,6 +2246,7 @@ def build_item_pages(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> 
           </div>
           </div>
         </section>
+        {properties_html}
         <section class="mt-8 rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
           <div class="mb-5">
             <h2 class="text-2xl font-bold text-white">Recipes</h2>
@@ -2253,7 +2254,6 @@ def build_item_pages(mods: dict[str, ModEntry], items: dict[str, ItemEntry]) -> 
           </div>
           {recipes_html or "<p class='muted'>No recipe output was found in the scanned data for this entry.</p>"}
         </section>
-        {properties_html}
         <section class="mt-8 rounded-[28px] border border-slate-700/50 bg-slate-900/70 p-6 shadow-2xl shadow-slate-950/20 backdrop-blur">
           <div class="mb-5">
             <h2 class="text-2xl font-bold text-white">Used In</h2>
